@@ -5,7 +5,6 @@ import os
 
 urls = [
     "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
-    "https://live.zbds.top/tv/iptv6.txt",
     "https://live.zbds.top/tv/iptv4.txt",
 ]
 
