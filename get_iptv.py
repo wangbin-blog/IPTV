@@ -11,7 +11,7 @@ SOURCE_URLS = [
     "https://live.zbds.top/tv/iptv6.txt",
     "https://live.zbds.top/tv/iptv4.txt",
 ]
-CATEGORY_TEMPLATE_PATH = "iptv_channels_template.txt"  # 分类模板路径
+CATEGORY_TEMPLATE_PATH = "demo.txt"  # 分类模板路径
 MAX_INTERFACES_PER_CHANNEL = 5  # 单频道最大接口数
 SPEED_TEST_TIMEOUT = 8  # 测速超时（秒）
 MAX_SPEED_TEST_WORKERS = 15  # 测速并发数
@@ -364,3 +364,82 @@ def save_organized_results(organized_data: list[dict]) -> None:
     total_cats = len(organized_data)
     total_chs = sum(len(cat["channels"]) for cat in organized_data)
     total_ifs = sum(ch["interface_count"] for cat in organized_data for ch in cat["channels"])
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+
+    # 1. 保存TXT文件
+    txt_filename = f"{OUTPUT_FILE_PREFIX}_TXT_{timestamp}_限{MAX_INTERFACES_PER_CHANNEL}接口.txt"
+    try:
+        with open(txt_filename, 'w', encoding='utf-8') as f:
+            f.write(f"# IPTV直播源（按分类整理）\n")
+            f.write(f"# 生成时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
+            f.write(f"# 总分类数：{total_cats} | 总频道数：{total_chs} | 总接口数：{total_ifs}\n")
+            f.write(f"# 单频道最大接口数：{MAX_INTERFACES_PER_CHANNEL}\n\n")
+
+            for cat in organized_data:
+                f.write(f"{CATEGORY_MARKER} {cat['category']}\n")
+                f.write(f"# 分类频道数：{len(cat['channels'])} | 分类接口数：{sum(ch['interface_count'] for ch in cat['channels'])}\n\n")
+                for ch in cat["channels"]:
+                    f.write(f"# {ch['program_name']}（{ch['interface_count']}个接口）\n")
+                    ipv4 = [url for url in ch['stream_urls'] if IPV4_PATTERN.match(url)]
+                    ipv6 = [url for url in ch['stream_urls'] if IPV6_PATTERN.match(url)]
+                    if ipv4:
+                        f.write("# --- IPv4 接口 ---\n")
+                        f.write("\n".join([f"{ch['program_name']},{url}" for url in ipv4]) + "\n\n")
+                    if ipv6:
+                        f.write("# --- IPv6 接口 ---\n")
+                        f.write("\n".join([f"{ch['program_name']},{url}" for url in ipv6]) + "\n\n")
+        print(f"\n📄 TXT文件保存成功 | 路径：{os.path.abspath(txt_filename)}")
+    except Exception as e:
+        print(f"❌ TXT文件保存失败：{str(e)}")
+
+    # 2. 保存M3U文件
+    m3u_filename = f"{OUTPUT_FILE_PREFIX}_M3U_{timestamp}_限{MAX_INTERFACES_PER_CHANNEL}接口.m3u"
+    try:
+        with open(m3u_filename, 'w', encoding='utf-8') as f:
+            f.write("#EXTM3U\n")
+            f.write(f"# 生成时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
+            f.write(f"# 总分类数：{total_cats} | 总频道数：{total_chs} | 总接口数：{total_ifs}\n\n")
+
+            for cat in organized_data:
+                f.write(f"# {CATEGORY_MARKER} {cat['category']}\n")
+                for ch in cat["channels"]:
+                    f.write(f"# 频道：{ch['program_name']} | 接口数：{ch['interface_count']}\n")
+                    for idx, url in enumerate(ch['stream_urls'], 1):
+                        f.write(f'#EXTINF:-1 tvg-name="{ch['program_name']}" group-title="{cat['category']}",{ch['program_name']}_{idx}\n')
+                        f.write(f"{url}\n")
+                f.write("\n")
+        print(f"📺 M3U文件保存成功 | 路径：{os.path.abspath(m3u_filename)}")
+    except Exception as e:
+        print(f"❌ M3U文件保存失败：{str(e)}")
+
+
+if __name__ == "__main__":
+    print_separator("IPTV直播源分类整理工具")
+    
+    # 步骤1：读取分类模板
+    print("\n【步骤1：读取分类模板】")
+    categories, all_channels = read_category_template(CATEGORY_TEMPLATE_PATH)
+    if not categories or not all_channels:
+        print("❌ 流程终止：模板读取失败")
+        exit()
+
+    # 步骤2：批量抓取直播源
+    print("\n【步骤2：批量抓取直播源】")
+    raw_content = batch_fetch_sources(SOURCE_URLS)
+    if not raw_content.strip():
+        print("❌ 流程终止：未抓取到任何直播源内容")
+        exit()
+
+    # 步骤3：按分类整理直播源
+    print("\n【步骤3：按分类整理直播源】")
+    organized_data = organize_streams(raw_content, categories, all_channels)
+    if not organized_data:
+        print("❌ 流程终止：整理失败")
+        exit()
+
+    # 步骤4：保存结果文件
+    print("\n【步骤4：保存结果文件】")
+    save_organized_results(organized_data)
+
+    print_separator("流程完成")
+    print("🎉 所有操作执行完成！")
