@@ -13,8 +13,8 @@ SOURCE_URLS = [
     "https://live.zbds.top/tv/iptv4.txt",
 ]
 CATEGORY_TEMPLATE_PATH = "demo.txt"  # 分类模板路径
-MAX_INTERFACES_PER_CHANNEL = 8  # 单频道最大接口数
-SPEED_TEST_TIMEOUT = 10  # 测速超时（秒）
+MAX_INTERFACES_PER_CHANNEL = 5  # 单频道最大接口数
+SPEED_TEST_TIMEOUT = 8  # 测速超时（秒）
 MAX_SPEED_TEST_WORKERS = 15  # 测速并发数
 MAX_FETCH_WORKERS = 5  # 抓取并发数（避免请求过载）
 OUTPUT_FILE_PREFIX = "iptv"  # 输出文件前缀
@@ -337,7 +337,7 @@ def batch_test_latency(stream_df: pd.DataFrame, max_workers: int, timeout: int) 
 
 
 def organize_streams(content: str, categories: list[dict], all_channels: list) -> list[dict]:
-    """按分类整理直播源（优化匹配逻辑和排序）"""
+    """按分类整理直播源（优化匹配逻辑、排序，新增字段检查）"""
     logger.info("\n🔧 开始整理直播源（4个步骤）")
     logger.info("-" * 70)
 
@@ -354,8 +354,11 @@ def organize_streams(content: str, categories: list[dict], all_channels: list) -
         logger.error("整理失败：解析后无有效直播流")
         return []
 
-    # 步骤2：按模板过滤频道（模糊匹配优化）
+    # 步骤2：按模板过滤频道（新增字段存在性检查）
     logger.info(f"\n🔧 步骤2/4：按模板过滤频道...")
+    if "program_name" not in stream_df.columns:
+        logger.error("整理失败：解析结果中无program_name字段")
+        return []
     stream_df["program_clean"] = stream_df["program_name"].apply(clean_text)
     template_clean = [clean_text(ch) for ch in all_channels]
     # 模糊匹配（兼容频道名细微差异，如"CCTV1"和"CCTV-1"）
@@ -376,13 +379,15 @@ def organize_streams(content: str, categories: list[dict], all_channels: list) -
         logger.error("整理失败：所有源测速失败")
         return []
 
-    # 步骤4：按分类整理（优化排序和接口限制）
+    # 步骤4：按分类整理（优化排序、接口限制，新增字段检查）
     logger.info(f"\n🔧 步骤4/4：按分类整理...")
     organized_data = []
     for cat in categories:
         cat_name = cat["category"]
         cat_ch_clean = [clean_text(ch) for ch in cat["channels"]]
-        # 匹配分类下的频道
+        if "program_name" not in valid_df.columns:
+            logger.error("整理失败：测速结果中无program_name字段")
+            return []
         cat_df = valid_df[valid_df["program_name"].apply(clean_text).isin(cat_ch_clean)].copy()
         if cat_df.empty:
             logger.warning(f"分类「{cat_name}」：无有效源，跳过")
@@ -390,6 +395,8 @@ def organize_streams(content: str, categories: list[dict], all_channels: list) -
 
         # 按模板顺序排序（优先模板顺序，再按延迟）
         ch_order = {clean_text(ch): idx for idx, ch in enumerate(cat["channels"])}
+        if "program_clean" not in cat_df.columns:
+            cat_df["program_clean"] = cat_df["program_name"].apply(clean_text)
         cat_df["order"] = cat_df["program_clean"].map(ch_order).fillna(999)
         cat_df_sorted = cat_df.sort_values(["order", "latency_ms"]).reset_index(drop=True)
 
@@ -496,7 +503,7 @@ def save_organized_results(organized_data: list[dict]) -> None:
 
 
 if __name__ == "__main__":
-    print_separator("IPTV直播源分类整理工具（优化版）")
+    print_separator("IPTV直播源分类整理工具（修复优化版）")
     
     try:
         # 步骤1：读取分类模板
