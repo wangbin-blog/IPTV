@@ -360,7 +360,3 @@ def save_organized_results(organized_data: list[dict]) -> None:
     if not organized_data:
         print("⚠️ 无有效数据可保存")
         return
-
-    total_cats = len(organized_data)
-    total_chs = sum(len(cat["channels"]) for cat in organized_data)
-    total_ifs = sum(ch["interface_count"] for cat in organized_data for ch in cat["channels
