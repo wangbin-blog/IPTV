@@ -7,7 +7,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 urls = [
     "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
-    "https://live.zbds.top/tv/iptv6.txt",
+    "http://47.120.41.246:8899/zb.txt",
+    "https://iptv.mydiver.eu.org/get.php?username=tg_442l98bq&password=4u6yo6fx7a4q&type=m3u_plus",
+    "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/wwb521/live/main/tv.m3u",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u",
+    "https://raw.githubusercontent.com/Guovin/iptv-database/master/result.txt",  
     "https://live.zbds.top/tv/iptv4.txt",
 ]
 
