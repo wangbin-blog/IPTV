@@ -62,7 +62,7 @@ def organize_streams(content):
     df = df.drop_duplicates(subset=['program_name', 'stream_url'])
     return df.groupby('program_name')['stream_url'].apply(list).reset_index()
 
-def save_to_txt(grouped_streams, filename="iptv.txt"):
+def save_to_txt(grouped_streams, filename="live.txt"):
     ipv4 = []
     ipv6 = []
     
@@ -79,7 +79,7 @@ def save_to_txt(grouped_streams, filename="iptv.txt"):
         f.write("\n\n# IPv6 Streams\n" + "\n".join(ipv6))
     print(f"文本文件已保存: {os.path.abspath(filename)}")
 
-def save_to_m3u(grouped_streams, filename="iptv.m3u"):
+def save_to_m3u(grouped_streams, filename="live.m3u"):
     with open(filename, 'w', encoding='utf-8') as f:
         f.write("#EXTM3U\n")
         for _, row in grouped_streams.iterrows():
