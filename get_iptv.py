@@ -5,25 +5,26 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# ======================== 核心配置区（可按需修改）========================
+# ======================== 核心配置区（已优化）========================
 SOURCE_URLS = [
     "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
     "https://live.zbds.top/tv/iptv6.txt",
     "https://live.zbds.top/tv/iptv4.txt",
 ]
-CATEGORY_TEMPLATE_PATH = "demo.txt"  # 分类模板路径
-MAX_INTERFACES_PER_CHANNEL = 5  # 单频道最大接口数
-SPEED_TEST_TIMEOUT = 8  # 测速超时（秒）
-MAX_SPEED_TEST_WORKERS = 15  # 测速并发数
-OUTPUT_FILE_PREFIX = "iptv_organized"  # 输出文件前缀
-CATEGORY_MARKER = "##"  # 模板分类标记（如"## 央视频道"）
+CATEGORY_TEMPLATE_PATH = "demo.txt"  # 分类模板文件（需与脚本同目录）
+MAX_INTERFACES_PER_CHANNEL = 5  # 单频道保留最多接口数
+SPEED_TEST_TIMEOUT = 8  # 测速超时时间（秒）
+MAX_SPEED_TEST_WORKERS = 15  # 测速并发线程数
+OUTPUT_FILE_PREFIX = "iptv.txt"  # 输出文件前缀
+CATEGORY_MARKER_RULE = r'^(.+?),(.+)$'  # 分类标识规则：频道分类,#genre#（如“央视频道,综合类”）
 # =========================================================================
 
-# 正则表达式（内部使用）
-IPV4_PATTERN = re.compile(r'^http://(\d{1,3}\.){3}\d{1,3}')
-IPV6_PATTERN = re.compile(r'^http://\[([a-fA-F0-9:]+)\]')
+# 正则表达式（支持HTTP/HTTPS协议的IP匹配）
+IPV4_PATTERN = re.compile(r'^https?://(\d{1,3}\.){3}\d{1,3}')
+IPV6_PATTERN = re.compile(r'^https?://\[([a-fA-F0-9:]+)\]')
 URL_PATTERN = re.compile(r'^https?://')
 SPACE_CLEAN_PATTERN = re.compile(r'\s+')
+CATEGORY_PATTERN = re.compile(CATEGORY_MARKER_RULE)  # 匹配“分类名,#genre#”格式的分类行
 
 
 def print_separator(title: str = "", length: int = 70) -> None:
@@ -37,20 +38,21 @@ def print_separator(title: str = "", length: int = 70) -> None:
 
 
 def clean_text(text: str) -> str:
-    """清理文本：去除多余空格、换行符"""
+    """清理文本：去除多余空格、换行符，统一格式"""
     return SPACE_CLEAN_PATTERN.sub("", str(text).strip())
 
 
-def read_category_template(template_path: str) -> tuple[list[dict], list[str]] | tuple[None, None]:
-    """读取分类模板，返回(分类结构, 去重频道列表)或(None, None)"""
+def read_category_template(template_path: str) -> tuple[list[dict], list[dict]] | tuple[None, None]:
+    """读取分类模板（分类行：频道分类,#genre#；频道行：频道名,#genre#），返回(分类结构, 频道信息)"""
     if not os.path.exists(template_path):
         print(f"❌ 错误：模板文件「{template_path}」不存在！")
-        print(f"📝 模板格式示例：\n  {CATEGORY_MARKER} 央视频道\n  CCTV1\n  CCTV2\n  {CATEGORY_MARKER} 卫视频道\n  湖南卫视")
+        print(f"📝 模板格式示例：\n  央视频道,综合类\n  CCTV1,综合\n  CCTV2,财经\n  卫视频道,综艺类\n  湖南卫视,综艺")
         return None, None
 
-    categories = []
+    categories = []  # 分类结构：[{category: "央视频道", cat_genre: "综合类", channels: [...]}, ...]
     current_category = None
-    all_channels = []
+    current_cat_genre = None
+    all_channel_info = []  # 频道信息：[{name: "CCTV1", genre: "综合", cat_name: "央视频道", ...}, ...]
 
     try:
         with open(template_path, 'r', encoding='utf-8') as f:
@@ -58,388 +60,279 @@ def read_category_template(template_path: str) -> tuple[list[dict], list[str]] |
                 line = line.strip()
                 if not line:
                     continue
-                if line.startswith("#") and not line.startswith(CATEGORY_MARKER):
+                # 跳过注释行（#开头且不匹配分类规则）
+                if line.startswith("#") and not CATEGORY_PATTERN.match(line):
                     continue
 
-                # 处理分类行
-                if line.startswith(CATEGORY_MARKER):
-                    cat_name = clean_text(line.lstrip(CATEGORY_MARKER))
+                # 处理分类行（格式：频道分类,#genre#）
+                cat_match = CATEGORY_PATTERN.match(line)
+                if cat_match:
+                    cat_name = clean_text(cat_match.group(1))
+                    cat_genre = clean_text(cat_match.group(2)) if len(cat_match.groups()) >= 2 else "未分类"
                     if not cat_name:
-                        print(f"⚠️ 第{line_num}行：分类名无效，忽略")
+                        print(f"⚠️ 第{line_num}行：分类名为空，忽略")
                         current_category = None
+                        current_cat_genre = None
                         continue
                     # 合并重复分类
-                    existing = next((c for c in categories if c["category"] == cat_name), None)
-                    if existing:
+                    existing_cat = next((c for c in categories if c["category"] == cat_name), None)
+                    if existing_cat:
                         current_category = cat_name
+                        current_cat_genre = existing_cat["cat_genre"]
                     else:
-                        categories.append({"category": cat_name, "channels": []})
+                        categories.append({
+                            "category": cat_name,
+                            "cat_genre": cat_genre,
+                            "channels": []
+                        })
                         current_category = cat_name
+                        current_cat_genre = cat_genre
                     continue
 
-                # 处理频道行
+                # 处理频道行（格式：频道名,#genre#）
                 if current_category is None:
-                    print(f"⚠️ 第{line_num}行：频道未分类，归入「未分类」")
+                    print(f"⚠️ 第{line_num}行：频道「{line}」未指定分类，归入「未分类」")
                     if not any(c["category"] == "未分类" for c in categories):
-                        categories.append({"category": "未分类", "channels": []})
+                        categories.append({
+                            "category": "未分类",
+                            "cat_genre": "未分类",
+                            "channels": []
+                        })
                     current_category = "未分类"
+                    current_cat_genre = "未分类"
 
-                ch_name = clean_text(line.split(",")[0])
+                # 分割频道名和类型
+                ch_parts = line.split(",")
+                ch_name = clean_text(ch_parts[0])
+                ch_genre = clean_text(ch_parts[1]) if len(ch_parts) >= 2 else "未分类"
+
                 if not ch_name:
-                    print(f"⚠️ 第{line_num}行：频道名无效，忽略")
+                    print(f"⚠️ 第{line_num}行：频道名为空，忽略")
                     continue
-                if ch_name not in all_channels:
-                    all_channels.append(ch_name)
-                    for cat in categories:
-                        if cat["category"] == current_category:
-                            cat["channels"].append(ch_name)
-                            break
+
+                # 记录频道完整信息（含所属分类）
+                ch_full_info = {
+                    "name": ch_name,
+                    "genre": ch_genre,
+                    "cat_name": current_category,
+                    "cat_genre": current_cat_genre
+                }
+                # 频道信息去重
+                if not any(ch["name"] == ch_name for ch in all_channel_info):
+                    all_channel_info.append(ch_full_info)
+
+                # 将频道添加到对应分类
+                for cat in categories:
+                    if cat["category"] == current_category:
+                        if not any(ch["name"] == ch_name for ch in cat["channels"]):
+                            cat["channels"].append({"name": ch_name, "genre": ch_genre})
+                        break
     except Exception as e:
         print(f"❌ 读取模板失败：{str(e)}")
         return None, None
 
     if not categories:
-        print("⚠️ 警告：模板无有效分类/频道")
+        print("⚠️ 警告：模板中未找到有效分类和频道")
         return None, None
 
+    # 打印模板读取结果（简化版）
     total_ch = sum(len(cat["channels"]) for cat in categories)
-    print(f"✅ 模板读取完成 | 分类数：{len(categories)} | 频道数：{total_ch}")
-    print("  " + "-" * 50)
+    print(f"✅ 模板「{template_path}」读取完成 | 分类数：{len(categories)} | 总频道数：{total_ch}")
+    print("  " + "-" * 70)
     for idx, cat in enumerate(categories, 1):
-        print(f"  {idx:2d}. 分类：{cat['category']:<20} 频道数：{len(cat['channels']):2d}")
-    print("  " + "-" * 50)
-    return categories, all_channels
+        print(f"  {idx:2d}. 分类：{cat['category']:<20} 分类类型：{cat['cat_genre']:<10} 频道数：{len(cat['channels']):2d}")
+        for ch in cat["channels"][:3]:
+            print(f"       - 频道：{ch['name']:<10} 类型：{ch['genre']}")
+        if len(cat["channels"]) > 3:
+            print(f"       - ... 等共{len(cat['channels'])}个频道")
+    print("  " + "-" * 70)
+    return categories, all_channel_info
 
 
 def fetch_single_source(url: str) -> str | None:
-    """抓取单个URL的直播源内容"""
-    print(f"\n🔍 抓取：{url}")
+    """抓取单个URL的直播源内容，处理编码和请求错误"""
+    print(f"\n🔍 正在抓取：{url}")
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36"
         }
         resp = requests.get(url, timeout=10, headers=headers, allow_redirects=True)
-        resp.raise_for_status()
+        resp.raise_for_status()  # 抛出HTTP错误（404/500等）
+        # 自动处理编码（解决中文乱码）
         if not resp.encoding or resp.encoding.lower() == "iso-8859-1":
             resp.encoding = resp.apparent_encoding
-        print(f"✅ 成功 | 长度：{len(resp.text):,} 字符")
+        print(f"✅ 抓取成功 | 内容长度：{len(resp.text):,} 字符")
         return resp.text
     except requests.exceptions.Timeout:
-        print(f"❌ 失败：请求超时")
+        print(f"❌ 抓取失败：请求超时（超过10秒）")
     except requests.exceptions.ConnectionError:
-        print(f"❌ 失败：网络错误")
+        print(f"❌ 抓取失败：网络连接错误（无法访问该URL）")
     except requests.exceptions.HTTPError as e:
-        print(f"❌ 失败：HTTP {e.response.status_code}")
+        print(f"❌ 抓取失败：HTTP错误 {e.response.status_code}")
     except Exception as e:
-        print(f"❌ 失败：{str(e)[:50]}")
+        print(f"❌ 抓取失败：未知错误 - {str(e)[:50]}")
     return None
 
 
 def batch_fetch_sources(url_list: list) -> str:
-    """批量抓取多个URL的直播源"""
+    """批量抓取多个URL的直播源，合并结果"""
     if not url_list:
-        print("⚠️ 警告：URL列表为空")
+        print("⚠️ 警告：直播源URL列表为空，无法抓取")
         return ""
 
-    total = len(url_list)
-    success = 0
-    combined = []
-    print(f"📥 批量抓取 | 总URL数：{total}")
+    total_url = len(url_list)
+    success_count = 0
+    combined_content = []
+    print(f"📥 开始批量抓取 | 总URL数量：{total_url}")
     print("-" * 70)
 
     for url in url_list:
         content = fetch_single_source(url)
         if content:
-            combined.append(content)
-            success += 1
+            combined_content.append(content)
+            success_count += 1
         else:
             print(f"⏭️  跳过无效URL：{url}")
         print("-" * 70)
 
-    print(f"\n📊 抓取统计 | 成功：{success} 个 | 失败：{total - success} 个")
-    return "\n".join(combined)
+    print(f"\n📊 批量抓取统计 | 成功：{success_count} 个 | 失败：{total_url - success_count} 个")
+    return "\n".join(combined_content)
 
 
 def parse_m3u(content: str) -> list[dict]:
-    """解析M3U格式直播源"""
+    """解析M3U格式直播源，提取频道名和播放地址"""
     if not content.strip():
-        print("⚠️ 警告：M3U内容为空")
+        print("⚠️ 警告：M3U格式内容为空，无法解析")
         return []
 
-    streams = []
-    current_prog = None
+    stream_list = []
+    current_program = None
     line_count = 0
 
     for line in content.splitlines():
         line_count += 1
         line = line.strip()
+        # 解析频道名（从#EXTINF行提取tvg-name）
         if line.startswith("#EXTINF"):
-            match = re.search(r'tvg-name=(["\']?)([^"\']+)\1', line)
-            if match:
-                current_prog = clean_text(match.group(2))
+            name_match = re.search(r'tvg-name=(["\']?)([^"\']+)\1', line)
+            if name_match:
+                current_program = clean_text(name_match.group(2))
             continue
-        if URL_PATTERN.match(line) and current_prog:
-            streams.append({"program_name": current_prog, "stream_url": line})
-            current_prog = None
+        # 解析播放地址（URL行）
+        if URL_PATTERN.match(line) and current_program:
+            stream_list.append({
+                "program_name": current_program,
+                "stream_url": line
+            })
+            current_program = None  # 重置，避免重复匹配
 
-    print(f"📊 M3U解析 | 总行数：{line_count:,} | 提取源：{len(streams)} 个")
-    return streams
+    print(f"📊 M3U解析完成 | 总行数：{line_count:,} | 提取有效流：{len(stream_list)} 个")
+    return stream_list
 
 
 def parse_txt(content: str) -> list[dict]:
-    """解析TXT格式直播源（频道名,URL）"""
+    """解析TXT格式直播源（格式：频道名,播放地址）"""
     if not content.strip():
-        print("⚠️ 警告：TXT内容为空")
+        print("⚠️ 警告：TXT格式内容为空，无法解析")
         return []
 
-    streams = []
+    stream_list = []
     line_count = 0
-    valid = 0
+    valid_line_count = 0
 
     for line in content.splitlines():
         line_count += 1
         line = line.strip()
+        # 跳过空行和注释行
         if not line or line.startswith("#"):
             continue
-        match = re.match(r'(.+?)\s*,\s*(https?://.+)$', line)
-        if match:
-            prog = clean_text(match.group(1))
-            url = match.group(2).strip()
-            if prog and url:
-                streams.append({"program_name": prog, "stream_url": url})
-                valid += 1
+        # 匹配"频道名,URL"格式
+        line_match = re.match(r'(.+?)\s*,\s*(https?://.+)$', line)
+        if line_match:
+            prog_name = clean_text(line_match.group(1))
+            stream_url = line_match.group(2).strip()
+            if prog_name and stream_url:
+                stream_list.append({
+                    "program_name": prog_name,
+                    "stream_url": stream_url
+                })
+                valid_line_count += 1
         else:
-            print(f"⚠️ 第{line_count}行：格式无效，忽略")
+            print(f"⚠️ 第{line_count}行：格式无效（需为「频道名,URL」），忽略")
 
-    print(f"📊 TXT解析 | 总行数：{line_count:,} | 有效行：{valid} | 提取源：{len(streams)} 个")
-    return streams
+    print(f"📊 TXT解析完成 | 总行数：{line_count:,} | 有效行：{valid_line_count} | 提取有效流：{len(stream_list)} 个")
+    return stream_list
 
 
 def test_stream_latency(stream_url: str, timeout: int) -> int | None:
-    """测试直播源延迟（毫秒），优先HEAD请求"""
-    start = time.time()
+    """测试直播源延迟（毫秒），优先用HEAD请求，细化错误提示"""
+    start_time = time.time()
     try:
+        # 优先用HEAD请求（轻量，仅获取响应头）
         resp = requests.head(stream_url, timeout=timeout, allow_redirects=True)
         if resp.status_code in [200, 206]:
-            return int((time.time() - start) * 1000)
+            return int((time.time() - start_time) * 1000)
+        # HEAD请求失败时，用GET请求（仅读取1字节验证可用性）
         resp = requests.get(stream_url, timeout=timeout, allow_redirects=True, stream=True)
         if resp.status_code in [200, 206]:
-            resp.iter_content(1).__next__()
-            return int((time.time() - start) * 1000)
-    except Exception:
-        pass
+            resp.iter_content(1).__next__()  # 读取1字节
+            return int((time.time() - start_time) * 1000)
+    except requests.exceptions.Timeout:
+        print(f"⚠️ 测速超时：{stream_url[:50]}{'...' if len(stream_url) > 50 else ''}")
+    except requests.exceptions.ConnectionError:
+        print(f"⚠️ 测速失败：{stream_url[:50]}{'...' if len(stream_url) > 50 else ''}（网络不可达）")
+    except Exception as e:
+        print(f"⚠️ 测速错误：{stream_url[:50]}{'...' if len(stream_url) > 50 else ''}（{str(e)[:30]}）")
     return None
 
 
 def batch_test_latency(stream_df: pd.DataFrame, max_workers: int, timeout: int) -> pd.DataFrame:
-    """批量测试直播源延迟，返回按延迟排序的有效源"""
+    """批量测试直播源延迟，返回按延迟升序排序的有效源DataFrame"""
     if stream_df.empty:
-        print("⚠️ 警告：无直播源可测试")
+        print("⚠️ 警告：无直播源可测试延迟")
         return pd.DataFrame(columns=["program_name", "stream_url", "latency_ms"])
 
-    total = len(stream_df)
-    results = []
-    print(f"⚡ 批量测速 | 源数：{total} | 并发：{max_workers} | 超时：{timeout}秒")
-    print("-" * 95)
+    total_stream = len(stream_df)
+    valid_results = []
+    print(f"⚡ 开始批量测速 | 总流数量：{total_stream} | 并发线程：{max_workers} | 超时：{timeout}秒")
+    print("-" * 100)
 
+    # 线程池并发测速（提升效率）
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_map = {
+        future_tasks = {
             executor.submit(test_stream_latency, row["stream_url"], timeout): (row["program_name"], row["stream_url"])
             for _, row in stream_df.iterrows()
         }
 
-        for idx, future in enumerate(as_completed(future_map), 1):
-            prog, url = future_map[future]
+        # 处理完成的任务
+        for task_idx, future in enumerate(as_completed(future_tasks), 1):
+            prog_name, stream_url = future_tasks[future]
             latency = future.result()
-            display_url = url[:65] + "..." if len(url) > 65 else url
+            display_url = stream_url[:70] + "..." if len(stream_url) > 70 else stream_url
 
             if latency is not None:
-                results.append({"program_name": prog, "stream_url": url, "latency_ms": latency})
-                print(f"✅ [{idx:3d}/{total}] 频道：{prog:<20} URL：{display_url:<70} 延迟：{latency:4d}ms")
+                valid_results.append({
+                    "program_name": prog_name,
+                    "stream_url": stream_url,
+                    "latency_ms": latency
+                })
+                print(f"✅ [{task_idx:3d}/{total_stream}] 频道：{prog_name:<20} URL：{display_url:<75} 延迟：{latency:4d}ms")
             else:
-                print(f"❌ [{idx:3d}/{total}] 频道：{prog:<20} URL：{display_url:<70} 状态：失败")
+                print(f"❌ [{task_idx:3d}/{total_stream}] 频道：{prog_name:<20} URL：{display_url:<75} 状态：无效")
 
-    latency_df = pd.DataFrame(results)
+    # 转换为DataFrame并排序
+    latency_df = pd.DataFrame(valid_results)
     if not latency_df.empty:
         latency_df = latency_df.sort_values("latency_ms").reset_index(drop=True)
 
-    print("-" * 95)
-    print(f"🏁 测速完成 | 有效：{len(latency_df)} 个 | 无效：{total - len(latency_df)} 个")
+    # 补全截断的打印语句
+    print("-" * 100)
+    print(f"🏁 批量测速完成 | 有效流：{len(latency_df)} 个 | 无效流：{total_stream - len(latency_df)} 个")
     if len(latency_df) > 0:
-        avg = latency_df["latency_ms"].mean()
-        print(f"📊 统计 | 最快：{latency_df['latency_ms'].min()}ms | 最慢：{latency_df['latency_ms'].max()}ms | 平均：{avg:.0f}ms")
+        avg_latency = int(latency_df["latency_ms"].mean())
+        print(f"📊 延迟统计 | 最快：{latency_df['latency_ms'].min()}ms | 最慢：{latency_df['latency_ms'].max()}ms | 平均：{avg_latency}ms")
     return latency_df
 
 
-def organize_streams(content: str, categories: list[dict], all_channels: list) -> list[dict]:
-    """按分类整理直播源：解析→过滤→测速→限制接口数"""
-    # 步骤1：解析
-    if content.startswith("#EXTINF"):
-        print("\n🔧 步骤1/4：解析M3U格式...")
-        parsed = parse_m3u(content)
-    else:
-        print("\n🔧 步骤1/4：解析TXT格式...")
-        parsed = parse_txt(content)
-    stream_df = pd.DataFrame(parsed)
-    if stream_df.empty:
-        print("❌ 整理失败：无解析结果")
-        return []
-
-    # 步骤2：过滤+去重
-    print(f"\n🔧 步骤2/4：过滤并去重...")
-    stream_df["program_clean"] = stream_df["program_name"].apply(clean_text)
-    template_clean = [clean_text(ch) for ch in all_channels]
-    filtered_df = stream_df[stream_df["program_clean"].isin(template_clean)].copy()
-    filtered_df = filtered_df.drop_duplicates(subset=["program_name", "stream_url"]).reset_index(drop=True)
-    if filtered_df.empty:
-        print("❌ 整理失败：无匹配模板的频道")
-        return []
-    print(f"  结果 | 原始：{len(stream_df)} 个 | 匹配：{len(filtered_df)} 个 | 过滤：{len(stream_df)-len(filtered_df)} 个")
-
-    # 步骤3：测速
-    print(f"\n🔧 步骤3/4：批量测速...")
-    valid_df = batch_test_latency(filtered_df[["program_name", "stream_url"]], MAX_SPEED_TEST_WORKERS, SPEED_TEST_TIMEOUT)
-    if valid_df.empty:
-        print("❌ 整理失败：所有源测速失败")
-        return []
-
-    # 步骤4：分类整理
-    print(f"\n🔧 步骤4/4：按分类整理...")
-    organized = []
-    for cat in categories:
-        cat_name = cat["category"]
-        cat_ch_clean = [clean_text(ch) for ch in cat["channels"]]
-        cat_df = valid_df[valid_df["program_name"].apply(clean_text).isin(cat_ch_clean)].copy()
-
-        if cat_df.empty:
-            print(f"⚠️ 分类「{cat_name}」：无有效源，跳过")
-            continue
-
-        # 按模板顺序排序
-        ch_order = {ch: idx for idx, ch in enumerate(cat["channels"])}
-        cat_df["order"] = cat_df["program_name"].apply(
-            lambda x: ch_order.get(next((ch for ch in cat["channels"] if clean_text(ch) == clean_text(x)), ""), 999)
-        )
-        cat_df_sorted = cat_df.sort_values(["order", "latency_ms"]).reset_index(drop=True)
-
-        # 限制单频道接口数
-        def limit_ifs(group):
-            limited = group.head(MAX_INTERFACES_PER_CHANNEL)
-            return pd.Series({
-                "stream_urls": limited["stream_url"].tolist(),
-                "interface_count": len(limited)
-            })
-        cat_grouped = cat_df_sorted.groupby("program_name").apply(limit_ifs).reset_index()
-        cat_grouped = cat_grouped[cat_grouped["interface_count"] > 0].reset_index(drop=True)
-
-        # 整理分类结果
-        cat_result = []
-        for _, row in cat_grouped.iterrows():
-            cat_result.append({
-                "program_name": row["program_name"],
-                "interface_count": row["interface_count"],
-                "stream_urls": row["stream_urls"]
-            })
-
-        organized.append({"category": cat_name, "channels": cat_result})
-
-    if not organized:
-        print("❌ 整理失败：无有效分类结果")
-        return []
-
-    # 统计结果
-    total_cats = len(organized)
-    total_chs = sum(len(cat["channels"]) for cat in organized)
-    total_ifs = sum(ch["interface_count"] for cat in organized for ch in cat["channels"])
-    print(f"\n✅ 整理完成 | 分类：{total_cats} 个 | 频道：{total_chs} 个 | 接口：{total_ifs} 个")
-    return organized
-
-
-def save_organized_results(organized_data: list[dict]) -> None:
-    """保存整理结果为TXT和M3U文件"""
-    if not organized_data:
-        print("⚠️ 无有效数据可保存")
-        return
-
-    total_cats = len(organized_data)
-    total_chs = sum(len(cat["channels"]) for cat in organized_data)
-    total_ifs = sum(ch["interface_count"] for cat in organized_data for ch in cat["channels"])
-    timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
-
-    # 1. 保存TXT文件
-    txt_filename = f"{OUTPUT_FILE_PREFIX}_TXT_{timestamp}_限{MAX_INTERFACES_PER_CHANNEL}接口.txt"
-    try:
-        with open(txt_filename, 'w', encoding='utf-8') as f:
-            f.write(f"# IPTV直播源（按分类整理）\n")
-            f.write(f"# 生成时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
-            f.write(f"# 总分类数：{total_cats} | 总频道数：{total_chs} | 总接口数：{total_ifs}\n")
-            f.write(f"# 单频道最大接口数：{MAX_INTERFACES_PER_CHANNEL}\n\n")
-
-            for cat in organized_data:
-                f.write(f"{CATEGORY_MARKER} {cat['category']}\n")
-                f.write(f"# 分类频道数：{len(cat['channels'])} | 分类接口数：{sum(ch['interface_count'] for ch in cat['channels'])}\n\n")
-                for ch in cat["channels"]:
-                    f.write(f"# {ch['program_name']}（{ch['interface_count']}个接口）\n")
-                    ipv4 = [url for url in ch['stream_urls'] if IPV4_PATTERN.match(url)]
-                    ipv6 = [url for url in ch['stream_urls'] if IPV6_PATTERN.match(url)]
-                    if ipv4:
-                        f.write("# --- IPv4 接口 ---\n")
-                        f.write("\n".join([f"{ch['program_name']},{url}" for url in ipv4]) + "\n\n")
-                    if ipv6:
-                        f.write("# --- IPv6 接口 ---\n")
-                        f.write("\n".join([f"{ch['program_name']},{url}" for url in ipv6]) + "\n\n")
-        print(f"\n📄 TXT文件保存成功 | 路径：{os.path.abspath(txt_filename)}")
-    except Exception as e:
-        print(f"❌ TXT文件保存失败：{str(e)}")
-
-    # 2. 保存M3U文件
-    m3u_filename = f"{OUTPUT_FILE_PREFIX}_M3U_{timestamp}_限{MAX_INTERFACES_PER_CHANNEL}接口.m3u"
-    try:
-        with open(m3u_filename, 'w', encoding='utf-8') as f:
-            f.write("#EXTM3U\n")
-            f.write(f"# 生成时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\n")
-            f.write(f"# 总分类数：{total_cats} | 总频道数：{total_chs} | 总接口数：{total_ifs}\n\n")
-
-            for cat in organized_data:
-                f.write(f"# {CATEGORY_MARKER} {cat['category']}\n")
-                for ch in cat["channels"]:
-                    f.write(f"# 频道：{ch['program_name']} | 接口数：{ch['interface_count']}\n")
-                    for idx, url in enumerate(ch['stream_urls'], 1):
-                        f.write(f'#EXTINF:-1 tvg-name="{ch['program_name']}" group-title="{cat['category']}",{ch['program_name']}_{idx}\n')
-                        f.write(f"{url}\n")
-                f.write("\n")
-        print(f"📺 M3U文件保存成功 | 路径：{os.path.abspath(m3u_filename)}")
-    except Exception as e:
-        print(f"❌ M3U文件保存失败：{str(e)}")
-
-
-if __name__ == "__main__":
-    print_separator("IPTV直播源分类整理工具")
-    
-    # 步骤1：读取分类模板
-    print("\n【步骤1：读取分类模板】")
-    categories, all_channels = read_category_template(CATEGORY_TEMPLATE_PATH)
-    if not categories or not all_channels:
-        print("❌ 流程终止：模板读取失败")
-        exit()
-
-    # 步骤2：批量抓取直播源
-    print("\n【步骤2：批量抓取直播源】")
-    raw_content = batch_fetch_sources(SOURCE_URLS)
-    if not raw_content.strip():
-        print("❌ 流程终止：未抓取到任何直播源内容")
-        exit()
-
-    # 步骤3：按分类整理直播源
-    print("\n【步骤3：按分类整理直播源】")
-    organized_data = organize_streams(raw_content, categories, all_channels)
-    if not organized_data:
-        print("❌ 流程终止：整理失败")
-        exit()
-
-    # 步骤4：保存结果文件
-    print("\n【步骤4：保存结果文件】")
-    save_organized_results(organized_data)
-
-    print_separator("流程完成")
-    print("🎉 所有操作执行完成！")
+def organize_streams(content: str, categories: list[dict], all_channel_info: list) -> list[dict]:
+    """按
