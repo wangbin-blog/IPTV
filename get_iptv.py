@@ -348,4 +348,163 @@ def organize_streams(content: str, categories: list[dict], all_channels: list) -
     if filtered_df.empty:
         print("整理失败：无匹配模板的频道")
         return []
-    print(f"  结果 | 原始...")
+    print(f"  结果 | 原始：{len(stream_df)} 个 | 匹配：{len(filtered_df)} 个 | 过滤：{len(stream_df)-len(filtered_df)} 个")
+
+    # 步骤3：批量测速
+    print(f"\n🔧 步骤3/4：批量测速...")
+    valid_df = batch_test_latency(filtered_df[["program_name", "stream_url"]], MAX_SPEED_TEST_WORKERS, SPEED_TEST_TIMEOUT)
+    if valid_df.empty:
+        print("整理失败：所有源测速失败")
+        return []
+
+    # 步骤4：按分类整理（优化排序、接口限制）
+    print(f"\n🔧 步骤4/4：按分类整理...")
+    organized_data = []
+    for cat in categories:
+        cat_name = cat["category"]
+        cat_ch_clean = [clean_text(ch) for ch in cat["channels"]]
+        cat_df = valid_df[valid_df["program_name"].apply(clean_text).isin(cat_ch_clean)].copy()
+        if cat_df.empty:
+            print(f"分类「{cat_name}」：无有效源，跳过")
+            continue
+
+        # 按模板顺序排序（优先模板顺序，再按延迟）
+        ch_order = {clean_text(ch): idx for idx, ch in enumerate(cat["channels"])}
+        cat_df["program_clean"] = cat_df["program_name"].apply(clean_text)
+        cat_df["order"] = cat_df["program_clean"].map(ch_order).fillna(999)
+        cat_df_sorted = cat_df.sort_values(["order", "latency_ms"]).reset_index(drop=True)
+
+        # 限制单频道接口数
+        def limit_interfaces(group):
+            limited = group.head(MAX_INTERFACES_PER_CHANNEL)
+            return pd.Series({
+                "stream_urls": limited["stream_url"].tolist(),
+                "interface_count": len(limited)
+            })
+        cat_grouped = cat_df_sorted.groupby("program_name").apply(limit_interfaces).reset_index()
+        cat_grouped = cat_grouped[cat_grouped["interface_count"] > 0].reset_index(drop=True)
+
+        # 整理分类结果
+        cat_result = []
+        for _, row in cat_grouped.iterrows():
+            cat_result.append({
+                "program_name": row["program_name"],
+                "interface_count": row["interface_count"],
+                "stream_urls": row["stream_urls"]
+            })
+
+        organized_data.append({"category": cat_name, "channels": cat_result})
+
+    if not organized_data:
+        print("整理失败：无有效分类结果")
+        return []
+
+    # 输出整理统计
+    total_cats = len(organized_data)
+    total_chs = sum(len(cat["channels"]) for cat in organized_data)
+    total_ifs = sum(ch["interface_count"] for cat in organized_data for ch in cat["channels"])
+    print(f"\n✅ 整理完成 | 分类：{total_cats} 个 | 频道：{total_chs} 个 | 接口：{total_ifs} 个")
+    return organized_data
+
+
+def save_organized_results(organized_data: list[dict]) -> None:
+    """保存整理结果为TXT和M3U文件（优化文件结构和信息完整性）"""
+    if not organized_data:
+        print("无有效数据可保存")
+        return
+
+    # 基础统计信息
+    total_cats = len(organized_data)
+    total_chs = sum(len(cat["channels"]) for cat in organized_data)
+    total_ifs = sum(ch["interface_count"] for cat in organized_data for ch in cat["channels"])
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+    basic_info = [
+        f"# IPTV直播源（按分类整理）",
+        f"# 生成时间：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}",
+        f"# 总分类数：{total_cats} | 总频道数：{total_chs} | 总接口数：{total_ifs}",
+        f"# 单频道最大接口数：{MAX_INTERFACES_PER_CHANNEL}",
+        f"# 测速超时时间：{SPEED_TEST_TIMEOUT}秒"
+    ]
+
+    # 1. 保存TXT文件（区分IPv4/IPv6）
+    txt_filename = f"{OUTPUT_FILE_PREFIX}_TXT_{timestamp}_限{MAX_INTERFACES_PER_CHANNEL}接口.txt"
+    try:
+        with open(txt_filename, 'w', encoding='utf-8') as f:
+            f.write("\n".join(basic_info) + "\n\n")
+            for cat in organized_data:
+                cat_ifs_total = sum(ch["interface_count"] for ch in cat["channels"])
+                f.write(f"{CATEGORY_MARKER} {cat['category']}\n")
+                f.write(f"# 分类频道数：{len(cat['channels'])} | 分类接口数：{cat_ifs_total}\n\n")
+                for ch in cat["channels"]:
+                    f.write(f"# {ch['program_name']}（{ch['interface_count']}个接口）\n")
+                    # 区分IPv4/IPv6
+                    ipv4_urls = [url for url in ch['stream_urls'] if IPV4_PATTERN.match(url)]
+                    ipv6_urls = [url for url in ch['stream_urls'] if IPV6_PATTERN.match(url)]
+                    other_urls = [url for url in ch['stream_urls'] if not (IPV4_PATTERN.match(url) or IPV6_PATTERN.match(url))]
+                    # 写入各类型接口
+                    if ipv4_urls:
+                        f.write("# --- IPv4 接口 ---\n")
+                        f.write("\n".join([f"{ch['program_name']},{url}" for url in ipv4_urls]) + "\n\n")
+                    if ipv6_urls:
+                        f.write("# --- IPv6 接口 ---\n")
+                        f.write("\n".join([f"{ch['program_name']},{url}" for url in ipv6_urls]) + "\n\n")
+                    if other_urls:
+                        f.write("# --- 其他 接口 ---\n")
+                        f.write("\n".join([f"{ch['program_name']},{url}" for url in other_urls]) + "\n\n")
+        print(f"\n📄 TXT文件保存成功 | 路径：{os.path.abspath(txt_filename)}")
+    except Exception as e:
+        print(f"❌ TXT文件保存失败：{str(e)}")
+
+    # 2. 保存M3U文件（优化播放器兼容性）
+    m3u_filename = f"{OUTPUT_FILE_PREFIX}_M3U_{timestamp}_限{MAX_INTERFACES_PER_CHANNEL}接口.m3u"
+    try:
+        with open(m3u_filename, 'w', encoding='utf-8') as f:
+            f.write("#EXTM3U\n")
+            f.write("\n".join(basic_info[1:]) + "\n\n")  # 去掉首行（M3U标准）
+            for cat in organized_data:
+                f.write(f"# {CATEGORY_MARKER} {cat['category']}\n")
+                for ch in cat["channels"]:
+                    ch_remark = f"频道：{ch['program_name']} | 接口数：{ch['interface_count']}"
+                    f.write(f"# {ch_remark}\n")
+                    for idx, url in enumerate(ch['stream_urls'], 1):
+                        # 增加tvg-id和tvg-logo占位（提升播放器显示效果）
+                        f.write(f'#EXTINF:-1 tvg-id="{ch['program_name']}" tvg-name="{ch['program_name']}" tvg-logo="" group-title="{cat['category']}",{ch['program_name']}_{idx}\n')
+                        f.write(f"{url}\n")
+                f.write("\n")
+        print(f"📺 M3U文件保存成功 | 路径：{os.path.abspath(m3u_filename)}")
+    except Exception as e:
+        print(f"❌ M3U文件保存失败：{str(e)}")
+
+
+if __name__ == "__main__":
+    print_separator("IPTV直播源分类整理工具（最终修复版）")
+    
+    try:
+        # 步骤1：读取分类模板
+        print("\n【步骤1：读取分类模板】")
+        categories, all_channels = read_category_template(CATEGORY_TEMPLATE_PATH)
+        if not categories or not all_channels:
+            raise Exception("模板读取失败")
+
+        # 步骤2：批量抓取直播源
+        print("\n【步骤2：批量抓取直播源】")
+        raw_content = batch_fetch_sources(SOURCE_URLS)
+        if not raw_content.strip():
+            raise Exception("未抓取到任何直播源内容")
+
+        # 步骤3：按分类整理直播源
+        print("\n【步骤3：按分类整理直播源】")
+        organized_data = organize_streams(raw_content, categories, all_channels)
+        if not organized_data:
+            raise Exception("直播源整理失败")
+
+        # 步骤4：保存结果文件
+        print("\n【步骤4：保存结果文件】")
+        save_organized_results(organized_data)
+
+        print_separator("流程完成")
+        print("🎉 所有操作执行完成！结果文件已保存至当前目录")
+    except Exception as e:
+        print_separator("流程终止")
+        print(f"❌ 流程终止：{str(e)}")
+        exit(1)
