@@ -307,12 +307,14 @@ def fetch_single(url: str, cache: dict) -> str | None:
         # 适配系统超时
         connect_timeout = 5 if not IS_WINDOWS else 8
         read_timeout = SPEED_TEST_TIMEOUT if not IS_WINDOWS else SPEED_TEST_TIMEOUT + 2
-        resp = requests.get(
+        # 修复重定向参数错误，使用allow_redirects并控制重定向次数
+        session = requests.Session()
+        session.max_redirects = MAX_REDIRECTS
+        resp = session.get(
             url,
             timeout=(connect_timeout, read_timeout),
             headers=headers,
             allow_redirects=True,
-            max_redirects=MAX_REDIRECTS,
             stream=False
         )
         resp.raise_for_status()
@@ -353,7 +355,7 @@ def fetch_single(url: str, cache: dict) -> str | None:
             cache[url] = {"valid": False, "timestamp": current_time}
         return None
     except requests.exceptions.TooManyRedirects:
-        msg = f"重定向超{MAX_REDIRECTS}次"
+        msg = f"重定向超过{MAX_REDIRECTS}次"
         safe_print(f"{COLOR_RED}❌ 抓取失败：{msg}{COLOR_RESET}")
         with CACHE_LOCK:
             cache[url] = {"valid": False, "timestamp": current_time}
@@ -662,7 +664,7 @@ def save_results(organized_streams: list[dict]) -> bool:
 
 
 if __name__ == "__main__":
-    print_sep("IPTV直播源分类整理工具（终极完美版）", length=70)
+    print_sep("IPTV直播源分类整理工具（修复重定向版）", length=70)
     start_time = time.time()
 
     try:
