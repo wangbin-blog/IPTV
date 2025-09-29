@@ -348,4 +348,4 @@ def organize_streams(content: str, categories: list[dict], all_channels: list) -
     if filtered_df.empty:
         print("整理失败：无匹配模板的频道")
         return []
-    print(f"  结果 | 原始
+    print(f"  结果 | 原始...")
