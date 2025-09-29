@@ -20,13 +20,22 @@ except ImportError:
 # 1. 基础功能配置
 SOURCE_URLS = [
     "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
-    "https://live.zbds.top/tv/iptv6.txt",
+    "https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u",
+    "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/wwb521/live/main/tv.m3u",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u",
+    "https://raw.githubusercontent.com/Guovin/iptv-database/master/result.txt",  
+    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u",
+    "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
+    "https://raw.githubusercontent.com/kimwang1978/collect-tv-txt/main/others_output.txt",
+    "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
+    "http://47.120.41.246:8899/zb.txt",
     "https://live.zbds.top/tv/iptv4.txt",
 ]
 DEFAULT_TEMPLATE = "demo.txt"  # 默认分类模板
 BACKUP_TEMPLATE = "demo_backup.txt"  # 模板备份文件
-MAX_INTERFACES_PER_CHANNEL = 5  # 单频道最多保留接口数
-SPEED_TEST_TIMEOUT = 8  # 基础测速超时（秒）
+MAX_INTERFACES_PER_CHANNEL = 8  # 单频道最多保留接口数
+SPEED_TEST_TIMEOUT = 10  # 基础测速超时（秒）
 MAX_SPEED_TEST_WORKERS = 15  # 测速并发线程数
 MAX_FETCH_WORKERS = 5  # 源抓取并发线程数
 
