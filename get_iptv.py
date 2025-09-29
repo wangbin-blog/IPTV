@@ -110,6 +110,7 @@ class Config:
         "preferred_resolutions": ["4K", "1080p", "720p"],
         "timeout": 10,
         "keep_unknown": False,
+        "max_resolution_workers": 8,
     }
     
     @classmethod
