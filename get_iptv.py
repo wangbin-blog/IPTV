@@ -1,164 +1,691 @@
 #!/usr/bin/env python3
 """
-IPTV源处理工具 - 优化版
-功能：多源抓取、测速筛选、分辨率过滤、严格模板匹配
-作者：优化版
-版本：2.1
+IPTV源处理工具 - 终极优化版 v18.4
+功能：多源抓取、智能测速(FFmpeg)、分辨率过滤、严格模板匹配、纯净输出
+特点：高性能、低内存、强健壮性、完整监控、极致优化、FFmpeg集成
+版本：18.4
+修复：网络错误统计、进度显示优化、模板处理逻辑、资源清理
 """
 
-import requests
-import re
 import os
-import time
-import logging
-import json
-import stat
-import platform
-import random
-from itertools import cycle
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock
-from typing import List, Dict, Tuple, Optional, Any, Union
-from dataclasses import dataclass
-from enum import Enum
 import sys
+import re
+import time
+import json
+import random
+import logging
+import platform
+import threading
+import statistics
+import socket
+import hashlib
+import pickle
+import subprocess
+import tempfile
+import signal
+from typing import List, Dict, Tuple, Optional, Any, Union, Generator
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock, RLock, Event
+from pathlib import Path
+from datetime import datetime
+from urllib.parse import urlparse
+from functools import lru_cache
+import requests
 
-# ======================== 数据类型定义 =========================
-class ResolutionQuality(Enum):
-    """分辨率质量等级"""
-    UHD_4K = "4K"
-    FHD_1080P = "1080p"
-    HD_720P = "720p"
-    SD_480P = "480p"
-    LOW_360P = "360p"
-    UNKNOWN = "unknown"
-    LOW_QUALITY = "low"
+# ======================== 可选依赖处理 =========================
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    print("提示: 安装 psutil 可获得系统监控功能: pip install psutil")
 
-@dataclass
-class ChannelInfo:
-    """频道信息数据类"""
-    name: str
-    url: str
-    delay: float = float('inf')
-    speed: float = 0.0
-    width: int = 0
-    height: int = 0
-    resolution: str = "unknown"
-    quality: ResolutionQuality = ResolutionQuality.UNKNOWN
+try:
+    from fuzzywuzzy import fuzz
+    FUZZYWUZZY_AVAILABLE = True
+except ImportError:
+    FUZZYWUZZY_AVAILABLE = False
+    print("提示: 安装 fuzzywuzzy 可获得模糊匹配功能: pip install fuzzywuzzy python-levenshtein")
 
-@dataclass
-class CategoryInfo:
-    """分类信息数据类"""
-    name: str
-    channels: List[str]
-    marker: str
+try:
+    import colorama
+    COLORAMA_AVAILABLE = True
+except ImportError:
+    COLORAMA_AVAILABLE = False
+    print("提示: 安装 colorama 可在Windows获得更好的颜色支持: pip install colorama")
 
-@dataclass
-class TemplateStructure:
-    """模板结构数据类"""
-    type: str  # 'category' or 'channel'
-    name: str
-    category: Optional[str] = None
-    line_num: int = 0
-
-# ======================== 配置管理类 =========================
+# ======================== 配置系统 =========================
 class Config:
-    """配置管理类"""
+    """集中配置管理"""
+    # 应用信息
+    VERSION = "18.4"
+    APP_NAME = "IPTV Processor Ultimate"
     
-    # 基础功能配置
+    # 网络配置
+    REQUEST_TIMEOUT = (6, 12)
+    SPEED_TEST_TIMEOUT = 15
+    CONNECT_TIMEOUT = 6
+    READ_TIMEOUT = 12
+    MAX_RETRIES = 3
+    RETRY_DELAY = 2
+    
+    # 并发配置
+    MAX_WORKERS_SOURCE = 8
+    MAX_WORKERS_SPEED_TEST = 6  # FFmpeg资源消耗大，降低并发
+    MAX_WORKERS_PARSING = 10
+    
+    # 性能阈值
+    MIN_SPEED_KBPS = 100  # 最低速度 100KB/s
+    MIN_CONTENT_LENGTH = 1000  # 最小内容长度
+    CACHE_MAX_AGE = 3600  # 缓存最大年龄(秒)
+    
+    # FFmpeg配置
+    FFMPEG_TIMEOUT = 20  # FFmpeg检测超时时间
+    FFMPEG_ANALYZE_DURATION = 10  # 分析时长(秒)
+    FFMPEG_PROBE_SIZE = 5000000  # 探测大小(5MB)
+    MIN_VIDEO_BITRATE = 100  # 最小视频码率(kbps)
+    MIN_AUDIO_BITRATE = 32   # 最小音频码率(kbps)
+    
+    # 源列表
     SOURCE_URLS = [
-    "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
-    "https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u",
-    "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
-    "https://gh-proxy.com/https://raw.githubusercontent.com/wwb521/live/main/tv.m3u",
-    "https://gh-proxy.com/https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u",
-    "https://raw.githubusercontent.com/Guovin/iptv-database/master/result.txt",  
-    "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u",
-    "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
-    "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
-    "http://47.120.41.246:8899/zb.txt",
-    "https://live.zbds.top/tv/iptv4.txt",
+        "https://raw.githubusercontent.com/iptv-org/iptv/master/channels.txt",
+        "https://mirror.ghproxy.com/https://raw.githubusercontent.com/iptv-org/iptv/master/channels.txt", 
+        "https://fastly.jsdelivr.net/gh/iptv-org/iptv@master/channels.txt",
+        "https://raw.fastgit.org/iptv-org/iptv/master/channels.txt",
     ]
     
     # 文件配置
-    DEFAULT_TEMPLATE = "demo.txt"
-    BACKUP_TEMPLATE = "demo_backup.txt"
-    TXT_OUTPUT = "iptv.txt"
-    M3U_OUTPUT = "iptv.m3u"
-    CACHE_FILE = ".iptv_valid_cache.json"
+    TEMPLATE_FILE = "demo.txt"
+    OUTPUT_TXT = "iptv.txt"
+    OUTPUT_M3U = "iptv.m3u"
+    OUTPUT_QUALITY_REPORT = "quality_report.json"
+    CACHE_DIR = ".iptv_cache"
+    LOG_FILE = "iptv_processor.log"
     
-    # 性能配置
-    MAX_INTERFACES_PER_CHANNEL = 5
-    SPEED_TEST_TIMEOUT = 8
-    MAX_SPEED_TEST_WORKERS = 15
-    MAX_FETCH_WORKERS = 5
-    MAX_RESOLUTION_WORKERS = 8  # 添加缺失的配置
+    # 模板匹配
+    FUZZY_MATCH_THRESHOLD = 80  # 模糊匹配阈值
+
+# ======================== 日志配置 =========================
+class LogConfig:
+    """日志配置管理"""
+    @staticmethod
+    def setup_logging():
+        """配置日志系统"""
+        logger = logging.getLogger('IPTV_Processor')
+        logger.setLevel(logging.INFO)
+        
+        # 清除已有处理器
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+        
+        # 创建格式化器
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        # 文件处理器
+        file_handler = logging.FileHandler(Config.LOG_FILE, encoding='utf-8', mode='w')
+        file_handler.setFormatter(formatter)
+        
+        # 控制台处理器
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+        
+        return logger
+
+# 初始化全局logger
+logger = LogConfig.setup_logging()
+
+# ======================== 数据类型定义 =========================
+class StreamType(Enum):
+    """流媒体类型"""
+    HLS = "hls"
+    HTTP = "http"
+    RTMP = "rtmp"
+    RTSP = "rtsp"
+    UDP = "udp"
+    UNKNOWN = "unknown"
+
+class VideoCodec(Enum):
+    """视频编码"""
+    H264 = "h264"
+    H265 = "h265"
+    MPEG4 = "mpeg4"
+    MPEG2 = "mpeg2"
+    VP9 = "vp9"
+    AV1 = "av1"
+    UNKNOWN = "unknown"
+
+class AudioCodec(Enum):
+    """音频编码"""
+    AAC = "aac"
+    MP3 = "mp3"
+    AC3 = "ac3"
+    OPUS = "opus"
+    UNKNOWN = "unknown"
+
+class ResolutionQuality(Enum):
+    """分辨率质量等级"""
+    UHD_8K = auto()
+    UHD_4K = auto()
+    FHD_1080P = auto()
+    HD_720P = auto()
+    SD_480P = auto()
+    LOW_360P = auto()
+    UNKNOWN = auto()
+
+class ChannelStatus(Enum):
+    """频道状态"""
+    VALID = auto()
+    INVALID = auto()
+    TIMEOUT = auto()
+    UNREACHABLE = auto()
+    LOW_SPEED = auto()
+    DNS_ERROR = auto()
+    FORMAT_ERROR = auto()
+    CODEC_ERROR = auto()
+
+@dataclass
+class StreamQuality:
+    """流媒体质量信息"""
+    video_bitrate: int = 0  # kbps
+    audio_bitrate: int = 0  # kbps
+    total_bitrate: int = 0  # kbps
+    video_codec: VideoCodec = VideoCodec.UNKNOWN
+    audio_codec: AudioCodec = AudioCodec.UNKNOWN
+    stream_type: StreamType = StreamType.UNKNOWN
+    has_video: bool = False
+    has_audio: bool = False
+    is_live: bool = False
+    duration: float = 0.0
+    frame_rate: float = 0.0
+    sample_rate: int = 0
+    channels: int = 0
+
+@dataclass
+class ChannelInfo:
+    """频道信息类"""
+    name: str
+    url: str
+    delay: float = 0.0
+    speed: float = 0.0
+    width: int = 0
+    height: int = 0
+    quality: ResolutionQuality = ResolutionQuality.UNKNOWN
+    status: ChannelStatus = ChannelStatus.INVALID
+    source: str = ""
+    last_checked: float = field(default_factory=time.time)
+    stream_quality: StreamQuality = field(default_factory=StreamQuality)
+    ffmpeg_supported: bool = False
+    connection_time: float = 0.0
+    buffer_time: float = 0.0
     
-    # 缓存配置
-    CACHE_EXPIRE = 3600
-    MAX_CACHE_SIZE = 100
+    def __post_init__(self):
+        """初始化后自动计算质量等级"""
+        self._update_quality()
     
-    # 网络配置
-    MAX_REDIRECTS = 3
-    REQ_INTERVAL = [0.2, 0.3, 0.4, 0.5]
-    MIN_CONTENT_LEN = 100
-    TEST_URL = "https://www.baidu.com"
+    def _update_quality(self):
+        """更新质量等级"""
+        if self.width >= 7680 or self.height >= 4320:
+            self.quality = ResolutionQuality.UHD_8K
+        elif self.width >= 3840 or self.height >= 2160:
+            self.quality = ResolutionQuality.UHD_4K
+        elif self.width >= 1920 or self.height >= 1080:
+            self.quality = ResolutionQuality.FHD_1080P
+        elif self.width >= 1280 or self.height >= 720:
+            self.quality = ResolutionQuality.HD_720P
+        elif self.width >= 854 or self.height >= 480:
+            self.quality = ResolutionQuality.SD_480P
+        elif self.width > 0 and self.height > 0:
+            self.quality = ResolutionQuality.LOW_360P
+        else:
+            self.quality = ResolutionQuality.UNKNOWN
     
-    # 模板配置
-    CATEGORY_MARKER = "#genre#"
+    @property
+    def is_valid(self) -> bool:
+        """检查是否有效"""
+        return self.status == ChannelStatus.VALID
     
-    # 分辨率过滤配置 - 修复：添加缺失的 max_resolution_workers
-    RESOLUTION_FILTER = {
-        "enable": True,
-        "min_width": 1280,
-        "min_height": 720,
-        "strict_mode": True,
-        "remove_low_resolution": True,
-        "low_res_threshold": (854, 480),
-        "preferred_resolutions": ["4K", "1080p", "720p"],
-        "timeout": 10,
-        "keep_unknown": False,
-        "max_resolution_workers": MAX_RESOLUTION_WORKERS,  # 修复：添加缺失的配置项
-    }
+    @property
+    def resolution_str(self) -> str:
+        """获取分辨率字符串"""
+        if self.width > 0 and self.height > 0:
+            return f"{self.width}x{self.height}"
+        return "未知"
     
-    @classmethod
-    def validate(cls) -> bool:
-        """验证配置完整性"""
-        validators = [
-            (bool(cls.SOURCE_URLS), "SOURCE_URLS 不能为空"),
-            (cls.MAX_FETCH_WORKERS > 0, "MAX_FETCH_WORKERS 必须大于0"),
-            (cls.MAX_SPEED_TEST_WORKERS > 0, "MAX_SPEED_TEST_WORKERS 必须大于0"),
-            (cls.SPEED_TEST_TIMEOUT > 0, "SPEED_TEST_TIMEOUT 必须大于0"),
-            (bool(cls.REQ_INTERVAL), "REQ_INTERVAL 不能为空"),
+    @property
+    def bitrate_str(self) -> str:
+        """获取码率字符串"""
+        if self.stream_quality.total_bitrate > 0:
+            return f"{self.stream_quality.total_bitrate} kbps"
+        return "未知"
+    
+    @property
+    def codec_str(self) -> str:
+        """获取编码信息字符串"""
+        video = self.stream_quality.video_codec.value
+        audio = self.stream_quality.audio_codec.value
+        return f"{video}+{audio}"
+
+@dataclass
+class ProcessingStats:
+    """处理统计"""
+    total_sources: int = 0
+    valid_sources: int = 0
+    total_channels: int = 0
+    speed_tested: int = 0
+    valid_channels: int = 0
+    template_matched: int = 0
+    final_channels: int = 0
+    start_time: float = field(default_factory=time.time)
+    end_time: float = 0
+    memory_peak: float = 0
+    network_errors: int = 0
+    cache_hits: int = 0
+    retry_attempts: int = 0
+    ffmpeg_tests: int = 0
+    ffmpeg_success: int = 0
+    
+    @property
+    def elapsed_time(self) -> float:
+        return (self.end_time or time.time()) - self.start_time
+    
+    def update_memory_peak(self):
+        """更新内存峰值"""
+        if PSUTIL_AVAILABLE:
+            try:
+                process = psutil.Process()
+                memory_mb = process.memory_info().rss / 1024 / 1024
+                self.memory_peak = max(self.memory_peak, memory_mb)
+            except Exception:
+                pass  # 忽略内存监控错误
+
+# ======================== FFmpeg检测器 =========================
+class FFmpegDetector:
+    """FFmpeg流媒体检测器 - 完整实现"""
+    
+    def __init__(self):
+        self.ffmpeg_path = self._find_ffmpeg()
+        self.ffprobe_path = self._find_ffprobe()
+        self._lock = Lock()
+    
+    def _find_ffmpeg(self) -> Optional[str]:
+        """查找FFmpeg可执行文件"""
+        possible_paths = [
+            'ffmpeg',
+            '/usr/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+            '/opt/homebrew/bin/ffmpeg',
+            'C:\\ffmpeg\\bin\\ffmpeg.exe',
+            'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
         ]
         
-        if cls.RESOLUTION_FILTER["enable"]:
-            resolution_validators = [
-                (cls.RESOLUTION_FILTER["min_width"] > 0 and cls.RESOLUTION_FILTER["min_height"] > 0, 
-                 "分辨率最小宽度和高度必须大于0"),
-                (cls.RESOLUTION_FILTER["timeout"] > 0, "分辨率检测超时必须大于0"),
-                (cls.RESOLUTION_FILTER["max_resolution_workers"] > 0, 
-                 "分辨率检测并发线程数必须大于0"),
-            ]
-            validators.extend(resolution_validators)
-        
-        errors = [msg for condition, msg in validators if not condition]
-        
-        if errors:
-            error_msg = "配置验证失败:\n" + "\n".join(f"  - {error}" for error in errors)
-            Console.print_error(error_msg)
-            return False
-        
-        return True
-
-# ======================== 工具类 =========================
-class Console:
-    """控制台输出工具类"""
+        return self._check_executable(possible_paths, 'ffmpeg')
     
-    # 颜色代码
+    def _find_ffprobe(self) -> Optional[str]:
+        """查找FFprobe可执行文件"""
+        possible_paths = [
+            'ffprobe',
+            '/usr/bin/ffprobe',
+            '/usr/local/bin/ffprobe',
+            '/opt/homebrew/bin/ffprobe',
+            'C:\\ffmpeg\\bin\\ffprobe.exe',
+            'C:\\Program Files\\ffmpeg\\bin\\ffprobe.exe',
+        ]
+        
+        return self._check_executable(possible_paths, 'ffprobe')
+    
+    def _check_executable(self, paths: List[str], tool_name: str) -> Optional[str]:
+        """检查可执行文件是否存在"""
+        for path in paths:
+            try:
+                result = subprocess.run(
+                    [path, '-version'],
+                    capture_output=True,
+                    timeout=5,
+                    text=True
+                )
+                if result.returncode == 0 and tool_name in result.stdout.lower():
+                    return path
+            except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
+                continue
+        return None
+    
+    def is_available(self) -> bool:
+        """检查FFmpeg是否可用"""
+        return self.ffmpeg_path is not None and self.ffprobe_path is not None
+    
+    def analyze_stream(self, url: str, timeout: int = Config.FFMPEG_TIMEOUT) -> Optional[Dict[str, Any]]:
+        """使用FFprobe分析流媒体"""
+        if not self.ffprobe_path:
+            return None
+        
+        try:
+            cmd = [
+                self.ffprobe_path,
+                '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_format',
+                '-show_streams',
+                '-analyzeduration', '10000000',
+                '-probesize', '5000000',
+                url
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=timeout,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                return json.loads(result.stdout)
+            else:
+                logger.debug(f"FFprobe分析失败: {result.stderr}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            logger.debug(f"FFmpeg分析超时: {url}")
+            return None
+        except json.JSONDecodeError as e:
+            logger.debug(f"FFmpeg输出JSON解析失败: {url} - {e}")
+            return None
+        except Exception as e:
+            logger.debug(f"FFmpeg分析异常: {url} - {e}")
+            return None
+    
+    def quick_test_stream(self, url: str, duration: int = 5) -> Optional[Dict[str, Any]]:
+        """快速测试流媒体可用性"""
+        if not self.ffmpeg_path:
+            return None
+        
+        try:
+            cmd = [
+                self.ffmpeg_path,
+                '-y',  # 覆盖输出文件
+                '-t', str(duration),  # 录制时长
+                '-i', url,
+                '-c', 'copy',  # 直接复制流
+                '-f', 'null',  # 输出到空设备
+                '-'
+            ]
+            
+            start_time = time.time()
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=duration + 10,
+                text=True
+            )
+            end_time = time.time()
+            
+            output = {
+                'success': result.returncode == 0,
+                'duration': end_time - start_time,
+                'output': result.stderr,
+                'error': result.stderr if result.returncode != 0 else None
+            }
+            
+            # 解析输出信息
+            if output['success']:
+                output.update({
+                    'bitrate': self._parse_bitrate(result.stderr),
+                    'speed': self._parse_speed(result.stderr)
+                })
+            
+            return output
+            
+        except subprocess.TimeoutExpired:
+            return {'success': False, 'error': 'timeout', 'duration': duration + 10}
+        except Exception as e:
+            return {'success': False, 'error': str(e), 'duration': 0}
+    
+    def _parse_bitrate(self, output: str) -> int:
+        """从FFmpeg输出解析码率"""
+        patterns = [
+            r'bitrate:\s*(\d+)\s*kb/s',
+            r'bitrate=(\d+)\s*kb/s',
+            r'Video:.*?(\d+)\s*kb/s',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, output)
+            if match:
+                try:
+                    return int(match.group(1))
+                except ValueError:
+                    continue
+        return 0
+    
+    def _parse_speed(self, output: str) -> float:
+        """从FFmpeg输出解析速度"""
+        match = re.search(r'speed=\s*([\d.]+)x', output)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                return 0.0
+        return 0.0
+    
+    def parse_stream_quality(self, probe_data: Dict[str, Any]) -> StreamQuality:
+        """解析流媒体质量信息"""
+        quality = StreamQuality()
+        
+        if not probe_data:
+            return quality
+        
+        try:
+            streams = probe_data.get('streams', [])
+            format_info = probe_data.get('format', {})
+            
+            # 分析视频流
+            video_streams = [s for s in streams if s.get('codec_type') == 'video']
+            if video_streams:
+                video = video_streams[0]
+                quality.has_video = True
+                quality.video_codec = self._parse_video_codec(video.get('codec_name', ''))
+                
+                # 解析码率
+                bit_rate = video.get('bit_rate')
+                if bit_rate:
+                    try:
+                        quality.video_bitrate = int(bit_rate) // 1000
+                    except (ValueError, TypeError):
+                        quality.video_bitrate = 0
+                
+                # 解析帧率
+                r_frame_rate = video.get('r_frame_rate', '0/1')
+                quality.frame_rate = self._parse_frame_rate(r_frame_rate)
+            
+            # 分析音频流
+            audio_streams = [s for s in streams if s.get('codec_type') == 'audio']
+            if audio_streams:
+                audio = audio_streams[0]
+                quality.has_audio = True
+                quality.audio_codec = self._parse_audio_codec(audio.get('codec_name', ''))
+                
+                # 解析音频码率
+                bit_rate = audio.get('bit_rate')
+                if bit_rate:
+                    try:
+                        quality.audio_bitrate = int(bit_rate) // 1000
+                    except (ValueError, TypeError):
+                        quality.audio_bitrate = 0
+                
+                # 解析音频参数
+                quality.sample_rate = int(audio.get('sample_rate', 0)) if audio.get('sample_rate') else 0
+                quality.channels = int(audio.get('channels', 0)) if audio.get('channels') else 0
+            
+            # 总码率
+            format_bit_rate = format_info.get('bit_rate')
+            if format_bit_rate:
+                try:
+                    quality.total_bitrate = int(format_bit_rate) // 1000
+                except (ValueError, TypeError):
+                    quality.total_bitrate = 0
+            
+            # 流类型检测
+            format_name = format_info.get('format_name', '')
+            quality.stream_type = self._detect_stream_type(format_name)
+            
+            # 直播流检测
+            quality.is_live = self._is_live_stream(format_info)
+            
+        except Exception as e:
+            logger.debug(f"解析流质量信息异常: {e}")
+        
+        return quality
+    
+    def _parse_video_codec(self, codec_name: str) -> VideoCodec:
+        """解析视频编码"""
+        codec_name = codec_name.lower()
+        if any(x in codec_name for x in ['h264', 'avc']):
+            return VideoCodec.H264
+        elif any(x in codec_name for x in ['h265', 'hevc']):
+            return VideoCodec.H265
+        elif 'mpeg4' in codec_name:
+            return VideoCodec.MPEG4
+        elif 'mpeg2' in codec_name:
+            return VideoCodec.MPEG2
+        elif 'vp9' in codec_name:
+            return VideoCodec.VP9
+        elif 'av1' in codec_name:
+            return VideoCodec.AV1
+        else:
+            return VideoCodec.UNKNOWN
+    
+    def _parse_audio_codec(self, codec_name: str) -> AudioCodec:
+        """解析音频编码"""
+        codec_name = codec_name.lower()
+        if 'aac' in codec_name:
+            return AudioCodec.AAC
+        elif 'mp3' in codec_name:
+            return AudioCodec.MP3
+        elif 'ac3' in codec_name:
+            return AudioCodec.AC3
+        elif 'opus' in codec_name:
+            return AudioCodec.OPUS
+        else:
+            return AudioCodec.UNKNOWN
+    
+    def _parse_frame_rate(self, frame_rate: str) -> float:
+        """解析帧率"""
+        try:
+            if '/' in frame_rate:
+                num, den = frame_rate.split('/')
+                if float(den) != 0:
+                    return float(num) / float(den)
+            return float(frame_rate)
+        except (ValueError, ZeroDivisionError):
+            return 0.0
+    
+    def _detect_stream_type(self, format_name: str) -> StreamType:
+        """检测流媒体类型"""
+        format_name = format_name.lower()
+        if 'hls' in format_name:
+            return StreamType.HLS
+        elif 'rtmp' in format_name:
+            return StreamType.RTMP
+        elif 'rtsp' in format_name:
+            return StreamType.RTSP
+        elif 'udp' in format_name:
+            return StreamType.UDP
+        elif 'http' in format_name:
+            return StreamType.HTTP
+        else:
+            return StreamType.UNKNOWN
+    
+    def _is_live_stream(self, format_info: Dict[str, Any]) -> bool:
+        """检测是否为直播流"""
+        try:
+            duration = float(format_info.get('duration', 0))
+            return duration < 60  # 小于60秒认为是直播流
+        except (ValueError, TypeError):
+            return True  # 无法解析duration时默认认为是直播流
+
+# ======================== 缓存系统 =========================
+class CacheManager:
+    """智能缓存管理系统"""
+    
+    def __init__(self, cache_dir: str = Config.CACHE_DIR):
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(exist_ok=True)
+        self._lock = Lock()
+    
+    def _get_cache_key(self, data: str) -> str:
+        """生成缓存键"""
+        return hashlib.md5(data.encode('utf-8')).hexdigest()
+    
+    def _get_cache_file(self, key: str, suffix: str = ".pkl") -> Path:
+        """获取缓存文件路径"""
+        return self.cache_dir / f"{key}{suffix}"
+    
+    def get_cached_data(self, key: str, max_age: int = Config.CACHE_MAX_AGE) -> Optional[Any]:
+        """获取缓存数据"""
+        cache_file = self._get_cache_file(key)
+        
+        with self._lock:
+            if not cache_file.exists():
+                return None
+            
+            file_age = time.time() - cache_file.stat().st_mtime
+            if file_age > max_age:
+                cache_file.unlink(missing_ok=True)
+                return None
+            
+            try:
+                with open(cache_file, 'rb') as f:
+                    return pickle.load(f)
+            except (pickle.PickleError, EOFError, FileNotFoundError):
+                cache_file.unlink(missing_ok=True)
+                return None
+    
+    def set_cached_data(self, key: str, data: Any) -> bool:
+        """设置缓存数据"""
+        cache_file = self._get_cache_file(key)
+        
+        with self._lock:
+            try:
+                with open(cache_file, 'wb') as f:
+                    pickle.dump(data, f)
+                return True
+            except Exception as e:
+                logger.warning(f"缓存写入失败 {key}: {e}")
+                return False
+    
+    def clear_expired_cache(self, max_age: int = Config.CACHE_MAX_AGE):
+        """清理过期缓存"""
+        with self._lock:
+            for cache_file in self.cache_dir.glob("*.pkl"):
+                try:
+                    file_age = time.time() - cache_file.stat().st_mtime
+                    if file_age > max_age:
+                        cache_file.unlink(missing_ok=True)
+                except Exception:
+                    continue
+    
+    def get_cached_source(self, url: str) -> Optional[str]:
+        """获取缓存的源数据"""
+        return self.get_cached_data(f"source_{self._get_cache_key(url)}")
+    
+    def cache_source(self, url: str, content: str) -> bool:
+        """缓存源数据"""
+        return self.set_cached_data(f"source_{self._get_cache_key(url)}", content)
+
+# ======================== 控制台输出 =========================
+class Console:
+    """优化控制台输出"""
+    
     COLORS = {
         'green': '\033[92m',
-        'red': '\033[91m',
+        'red': '\033[91m', 
         'yellow': '\033[93m',
         'blue': '\033[94m',
         'cyan': '\033[96m',
@@ -166,1099 +693,957 @@ class Console:
         'reset': '\033[0m'
     }
     
-    # 线程安全锁
-    print_lock = Lock()
+    _lock = Lock()
+    _progress_length = 50
+    _colors_initialized = False
     
     @classmethod
     def _init_colors(cls):
         """初始化颜色支持"""
-        if platform.system() == "Windows":
+        if cls._colors_initialized:
+            return
+            
+        if platform.system() == "Windows" and COLORAMA_AVAILABLE:
             try:
-                import colorama
                 colorama.init()
-                # 在Windows上使用colorama的颜色
-                cls.COLORS = {k: getattr(colorama.Fore, v.upper()) 
-                            for k, v in cls.COLORS.items()}
-            except ImportError:
-                # 没有colorama，在Windows上不使用颜色
+            except Exception:
                 cls.COLORS = {k: '' for k in cls.COLORS}
+        elif platform.system() == "Windows":
+            cls.COLORS = {k: '' for k in cls.COLORS}
+        
+        cls._colors_initialized = True
     
     @classmethod
-    def print(cls, message: str, color: str = None, icon: str = ""):
-        """线程安全的彩色输出"""
-        with cls.print_lock:
+    def print(cls, message: str, color: str = None, end: str = "\n"):
+        """线程安全打印"""
+        cls._init_colors()
+        with cls._lock:
             color_code = cls.COLORS.get(color, '')
             reset_code = cls.COLORS['reset']
-            formatted_msg = f"{icon} {message}" if icon else message
             if color_code:
-                print(f"{color_code}{formatted_msg}{reset_code}")
+                print(f"{color_code}{message}{reset_code}", end=end, flush=True)
             else:
-                print(formatted_msg)
+                print(message, end=end, flush=True)
     
     @classmethod
     def print_success(cls, message: str):
-        """成功信息"""
-        cls.print(message, 'green', '✅')
+        cls.print(f"✅ {message}", 'green')
+        logger.info(f"SUCCESS: {message}")
     
     @classmethod
     def print_error(cls, message: str):
-        """错误信息"""
-        cls.print(message, 'red', '❌')
+        cls.print(f"❌ {message}", 'red')
+        logger.error(f"ERROR: {message}")
     
     @classmethod
     def print_warning(cls, message: str):
-        """警告信息"""
-        cls.print(message, 'yellow', '⚠️')
+        cls.print(f"⚠️ {message}", 'yellow')
+        logger.warning(f"WARNING: {message}")
     
     @classmethod
     def print_info(cls, message: str):
-        """信息提示"""
-        cls.print(message, 'blue', '🔍')
+        cls.print(f"ℹ️ {message}", 'blue')
+        logger.info(f"INFO: {message}")
     
     @classmethod
-    def print_separator(cls, title: str = "", length: int = 70):
-        """打印分隔线"""
-        with cls.print_lock:
-            sep = "=" * length
-            if title:
-                print(f"\n{sep}\n📌 {cls.COLORS['blue']}{title}{cls.COLORS['reset']}\n{sep}")
-            else:
-                print(sep)
+    def print_debug(cls, message: str):
+        cls.print(f"🔍 {message}", 'cyan')
+        logger.debug(f"DEBUG: {message}")
+    
+    @classmethod
+    def print_ffmpeg(cls, message: str):
+        cls.print(f"🎥 {message}", 'magenta')
+        logger.info(f"FFMPEG: {message}")
+    
+    @classmethod
+    def print_progress(cls, current: int, total: int, prefix: str = ""):
+        """优化进度条显示"""
+        with cls._lock:
+            percent = current / total if total > 0 else 0
+            filled = int(cls._progress_length * percent)
+            bar = '█' * filled + '░' * (cls._progress_length - filled)
+            progress = f"\r{prefix} [{bar}] {current}/{total} ({percent:.1%})"
+            print(progress, end='', flush=True)
+            if current == total:
+                print()
 
-# 初始化控制台颜色
-Console._init_colors()
-
-class FileUtils:
-    """文件工具类"""
+# ======================== 智能分辨率检测器 =========================
+class ResolutionDetector:
+    """优化分辨率检测器"""
     
     @staticmethod
-    def set_permissions(file_path: str) -> bool:
-        """设置文件权限（Linux/Mac）"""
-        if platform.system() == "Windows":
-            return True
+    def detect_from_name(channel_name: str) -> Tuple[int, int, str]:
+        """从频道名称智能检测分辨率"""
+        if not channel_name:
+            return 1280, 720, "auto"
         
         try:
-            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
-            return True
+            channel_lower = channel_name.lower()
+            
+            # 优先检测数字格式
+            match = re.search(r'(\d{3,4})[×xX*](\d{3,4})', channel_lower)
+            if match:
+                width, height = int(match.group(1)), int(match.group(2))
+                if 100 <= width <= 7680 and 100 <= height <= 4320:
+                    return width, height, f"{width}x{height}"
+            
+            # 检测标准分辨率名称
+            if any(x in channel_lower for x in ['8k', '4320p']):
+                return 7680, 4320, "8K"
+            elif any(x in channel_lower for x in ['4k', 'uhd', '2160p']):
+                return 3840, 2160, "4K"
+            elif any(x in channel_lower for x in ['1080p', 'fhd', '全高清']):
+                return 1920, 1080, "1080P"
+            elif any(x in channel_lower for x in ['720p', 'hd', '高清']):
+                return 1280, 720, "720P"
+            elif any(x in channel_lower for x in ['480p', 'sd', '标清']):
+                return 854, 480, "480P"
+                
         except Exception as e:
-            Console.print_warning(f"文件权限设置失败：{str(e)}")
+            logger.debug(f"分辨率检测异常: {channel_name} - {str(e)}")
+        
+        return 1280, 720, "auto"
+
+# ======================== 文本处理工具 =========================
+class TextUtils:
+    """优化文本处理工具"""
+    
+    @staticmethod
+    def normalize_text(text: str) -> str:
+        """标准化文本"""
+        return re.sub(r'\s+', ' ', text.strip()) if text else ""
+    
+    @staticmethod
+    def is_valid_url(url: str) -> bool:
+        """验证URL有效性"""
+        if not url:
+            return False
+        try:
+            result = urlparse(url)
+            return all([result.scheme in ['http', 'https', 'rtmp', 'rtsp'], result.netloc])
+        except Exception:
             return False
     
     @staticmethod
-    def ensure_directory(file_path: str) -> bool:
-        """确保文件所在目录存在"""
-        directory = os.path.dirname(file_path)
-        if directory and not os.path.exists(directory):
-            try:
-                os.makedirs(directory, exist_ok=True)
-                return True
-            except Exception as e:
-                Console.print_error(f"创建目录失败：{str(e)}")
-                return False
-        return True
+    def parse_channel_line(line: str) -> Optional[Tuple[str, str]]:
+        """优化频道行解析"""
+        line = TextUtils.normalize_text(line)
+        if not line or line.startswith('#'):
+            return None
+        
+        # 支持多种分隔符格式
+        patterns = [
+            (r'^([^,]+?),\s*(https?://[^\s]+)$', '标准格式'),
+            (r'^([^|]+?)\|\s*(https?://[^\s]+)$', '竖线分隔'),
+            (r'#EXTINF:.*?,(.+?)\s*(?:https?://[^\s]+)?\s*(https?://[^\s]+)$', 'M3U格式'),
+        ]
+        
+        for pattern, _ in patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                name = TextUtils.normalize_text(match.group(1))
+                url = TextUtils.normalize_text(match.group(2))
+                if name and url and TextUtils.is_valid_url(url):
+                    return name, url
+        
+        return None
+
+# ======================== 模板管理器 =========================
+class TemplateManager:
+    """优化模板管理器"""
     
     @staticmethod
-    def read_file_lines(file_path: str) -> List[str]:
-        """读取文件所有行"""
+    def load_template(file_path: str = Config.TEMPLATE_FILE) -> List[str]:
+        """加载模板文件"""
+        if not os.path.exists(file_path):
+            Console.print_warning(f"模板文件不存在: {file_path}")
+            return []
+        
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                return [line.strip() for line in f.readlines()]
+                lines = [line.strip() for line in f if line.strip()]
+            Console.print_success(f"模板加载成功: {len(lines)}行")
+            return lines
         except Exception as e:
-            Console.print_error(f"读取文件失败 {file_path}: {str(e)}")
+            Console.print_error(f"模板加载失败: {str(e)}")
             return []
     
     @staticmethod
-    def write_file(file_path: str, content: str) -> bool:
-        """写入文件"""
-        try:
-            FileUtils.ensure_directory(file_path)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            FileUtils.set_permissions(file_path)
-            return True
-        except Exception as e:
-            Console.print_error(f"写入文件失败 {file_path}: {str(e)}")
-            return False
+    def parse_template_structure(lines: List[str]) -> Dict[str, List[str]]:
+        """解析模板结构"""
+        structure = {}
+        current_category = "默认分类"
+        
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('##'):
+                continue
+                
+            if '#genre#' in line:
+                current_category = line.split(',')[0].strip()
+                structure[current_category] = []
+            elif current_category and line and not line.startswith('#'):
+                channel_name = line.split(',')[0].strip()
+                if channel_name:
+                    structure[current_category].append(channel_name)
+        
+        return structure
 
-class NetworkUtils:
-    """网络工具类"""
+# ======================== 核心处理器 =========================
+class IPTVProcessor:
+    """优化IPTV处理器主类"""
     
-    @staticmethod
-    def check_connectivity() -> bool:
-        """检查网络连接"""
-        Console.print_info("正在检测网络连接...")
-        try:
-            timeout = 5 if platform.system() == "Windows" else 3
-            response = requests.get(Config.TEST_URL, timeout=timeout)
-            if response.status_code == 200:
-                Console.print_success(f"网络连接正常（{platform.system()}系统）")
-                return True
-            else:
-                Console.print_error(f"网络检测失败：HTTP状态码 {response.status_code}")
-                return False
-        except Exception as e:
-            Console.print_error(f"网络连接异常：{str(e)}")
-            return False
+    def __init__(self):
+        self.session = self._create_optimized_session()
+        self.cache_manager = CacheManager()
+        self.ffmpeg_detector = FFmpegDetector()
+        self.stats = ProcessingStats()
+        self._stop_event = Event()
+        self._health_monitor_thread = None
+        
+        # FFmpeg可用性检查
+        if self.ffmpeg_detector.is_available():
+            Console.print_success("FFmpeg检测器已启用")
+        else:
+            Console.print_warning("FFmpeg未找到，使用基础测速模式")
     
-    @staticmethod
-    def create_session() -> requests.Session:
-        """创建优化的请求会话"""
+    def _create_optimized_session(self) -> requests.Session:
+        """创建高度优化的会话"""
         session = requests.Session()
+        
+        # 优化连接池配置
         adapter = requests.adapters.HTTPAdapter(
-            pool_connections=10,
+            pool_connections=50,
             pool_maxsize=100,
-            max_retries=2
+            max_retries=2,
+            pool_block=False
         )
         session.mount('http://', adapter)
         session.mount('https://', adapter)
         
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "*/*",
-            "Connection": "keep-alive"
-        })
+        # 设置默认超时
+        def request_with_timeout(method, url, **kwargs):
+            kwargs.setdefault('timeout', Config.REQUEST_TIMEOUT)
+            return requests.Session.request(session, method, url, **kwargs)
         
+        session.request = request_with_timeout
         return session
-
-class TextUtils:
-    """文本处理工具类"""
     
-    # 正则表达式预编译
-    SPACE_PATTERN = re.compile(r'^\s+|\s+$|\s+(?=\s)')
-    CHANNEL_PATTERN = re.compile(r'([^,]+),(https?://.+)$')
-    URL_PATTERN = re.compile(r'^https?://')
+    def _start_health_monitor(self):
+        """启动健康监控"""
+        if not PSUTIL_AVAILABLE:
+            return
+            
+        def monitor():
+            while not self._stop_event.is_set():
+                try:
+                    self.stats.update_memory_peak()
+                    self._stop_event.wait(5)  # 每5秒检查一次
+                except Exception:
+                    break
+        
+        self._health_monitor_thread = threading.Thread(target=monitor, daemon=True)
+        self._health_monitor_thread.start()
     
-    # 分辨率相关正则
-    RESOLUTION_PATTERN = re.compile(r'(\d{3,4})[×xX*](\d{3,4})')
-    RESOLUTION_NAME_PATTERN = re.compile(r'(4K|UHD|1080[Pp]|720[Pp]|480[Pp]|360[Pp]|SD|HD|FHD|超清|高清|标清)')
-    LOW_RES_INDICATORS = re.compile(r'(标清|流畅|流畅版|低速|低码|480|360|SD|low)', re.IGNORECASE)
-    
-    @staticmethod
-    def clean_text(text: str) -> str:
-        """清理文本中的多余空格"""
-        if not text:
-            return ""
-        return TextUtils.SPACE_PATTERN.sub("", str(text).strip())
-    
-    @staticmethod
-    def is_valid_url(url: str) -> bool:
-        """验证URL格式"""
-        return bool(url and TextUtils.URL_PATTERN.match(url))
-    
-    @staticmethod
-    def parse_channel_line(line: str) -> Optional[Tuple[str, str]]:
-        """解析频道行"""
-        match = TextUtils.CHANNEL_PATTERN.match(line.strip())
-        if match:
-            name, url = match.groups()
-            name = TextUtils.clean_text(name)
-            url = TextUtils.clean_text(url)
-            if name and url and TextUtils.is_valid_url(url):
-                return name, url
+    def _fetch_single_source_with_retry(self, url: str) -> Optional[str]:
+        """带重试的源抓取"""
+        for attempt in range(Config.MAX_RETRIES):
+            try:
+                # 先检查缓存
+                cached_content = self.cache_manager.get_cached_source(url)
+                if cached_content:
+                    self.stats.cache_hits += 1
+                    return cached_content
+                
+                # 抓取新内容
+                content = self._fetch_single_source(url)
+                if content:
+                    # 缓存成功结果
+                    self.cache_manager.cache_source(url, content)
+                    return content
+                    
+            except Exception as e:
+                if attempt == Config.MAX_RETRIES - 1:
+                    logger.warning(f"源抓取失败 {url} after {Config.MAX_RETRIES} attempts: {e}")
+                    return None
+                
+                delay = Config.RETRY_DELAY * (2 ** attempt)  # 指数退避
+                logger.debug(f"第{attempt + 1}次重试 {url} in {delay}s")
+                time.sleep(delay)
+                self.stats.retry_attempts += 1
+        
         return None
     
-    @staticmethod
-    def normalize_channel_name(name: str) -> str:
-        """标准化频道名用于匹配"""
-        return name.lower().replace(' ', '').replace('高清', '').replace('标清', '')
-    
-    @staticmethod
-    def parse_resolution(channel_name: str) -> Tuple[Optional[int], Optional[int], str, ResolutionQuality]:
-        """从频道名解析分辨率信息"""
-        if not channel_name:
-            return None, None, "unknown", ResolutionQuality.UNKNOWN
-        
-        quality = ResolutionQuality.UNKNOWN
-        
-        # 检测低分辨率标识
-        if TextUtils.LOW_RES_INDICATORS.search(channel_name):
-            quality = ResolutionQuality.LOW_QUALITY
-        
-        # 匹配数字分辨率格式
-        resolution_match = TextUtils.RESOLUTION_PATTERN.search(channel_name)
-        if resolution_match:
-            width = int(resolution_match.group(1))
-            height = int(resolution_match.group(2))
-            res_name = f"{width}x{height}"
-            
-            # 根据分辨率判断质量
-            if width >= 3840 or height >= 2160:
-                quality = ResolutionQuality.UHD_4K
-            elif width >= 1920 or height >= 1080:
-                quality = ResolutionQuality.FHD_1080P
-            elif width >= 1280 or height >= 720:
-                quality = ResolutionQuality.HD_720P
-            elif width < 1280 or height < 720:
-                quality = ResolutionQuality.LOW_QUALITY
-                
-            return width, height, res_name, quality
-        
-        # 匹配标准分辨率名称
-        name_match = TextUtils.RESOLUTION_NAME_PATTERN.search(channel_name)
-        if name_match:
-            res_name = name_match.group(1).upper()
-            resolution_map = {
-                "4K": (3840, 2160, ResolutionQuality.UHD_4K),
-                "UHD": (3840, 2160, ResolutionQuality.UHD_4K),
-                "FHD": (1920, 1080, ResolutionQuality.FHD_1080P),
-                "1080P": (1920, 1080, ResolutionQuality.FHD_1080P),
-                "1080p": (1920, 1080, ResolutionQuality.FHD_1080P),
-                "HD": (1280, 720, ResolutionQuality.HD_720P),
-                "720P": (1280, 720, ResolutionQuality.HD_720P),
-                "720p": (1280, 720, ResolutionQuality.HD_720P),
-                "480P": (854, 480, ResolutionQuality.SD_480P),
-                "480p": (854, 480, ResolutionQuality.SD_480P),
-                "360P": (640, 360, ResolutionQuality.LOW_360P),
-                "360p": (640, 360, ResolutionQuality.LOW_360P),
-                "超清": (1920, 1080, ResolutionQuality.FHD_1080P),
-                "高清": (1280, 720, ResolutionQuality.HD_720P),
-                "标清": (854, 480, ResolutionQuality.SD_480P)
+    def _fetch_single_source(self, url: str) -> Optional[str]:
+        """优化单源抓取"""
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/plain,text/html,*/*',
+                'Accept-Encoding': 'gzip, deflate',
             }
-            if res_name in resolution_map:
-                width, height, quality = resolution_map[res_name]
-                return width, height, res_name, quality
-        
-        return None, None, "unknown", quality
-    
-    @staticmethod
-    def get_resolution_priority(resolution_name: str) -> int:
-        """获取分辨率优先级"""
-        priority_map = {
-            "4K": 1, "UHD": 1,
-            "1080P": 2, "1080p": 2, "FHD": 2,
-            "720P": 3, "720p": 3, "HD": 3,
-            "480P": 4, "480p": 4,
-            "360P": 5, "360p": 5,
-            "SD": 6, "标清": 6
-        }
-        return priority_map.get(resolution_name, 999)
-
-# ======================== 核心功能类 =========================
-class CacheManager:
-    """缓存管理器"""
-    
-    def __init__(self):
-        self.cache_file = Config.CACHE_FILE
-        self.lock = Lock()
-        self.cache = self._load_cache()
-    
-    def _load_cache(self) -> Dict[str, Any]:
-        """加载缓存"""
-        with self.lock:
-            if not os.path.exists(self.cache_file):
-                return {}
             
-            try:
-                with open(self.cache_file, 'r', encoding='utf-8') as f:
-                    cache = json.load(f)
-                
-                # 清理过期缓存
-                current_time = time.time()
-                valid_cache = {
-                    url: info for url, info in cache.items()
-                    if current_time - info.get("timestamp", 0) < Config.CACHE_EXPIRE
-                }
-                
-                # 控制缓存大小
-                if len(valid_cache) > Config.MAX_CACHE_SIZE:
-                    sorted_cache = sorted(valid_cache.items(), 
-                                        key=lambda x: x[1].get("timestamp", 0), 
-                                        reverse=True)
-                    valid_cache = dict(sorted_cache[:Config.MAX_CACHE_SIZE])
-                    Console.print_warning(f"缓存超量，保留最新{Config.MAX_CACHE_SIZE}个")
-                
-                return valid_cache
-            except Exception as e:
-                Console.print_warning(f"加载缓存失败：{str(e)}，使用空缓存")
-                return {}
-    
-    def save_cache(self) -> bool:
-        """保存缓存"""
-        with self.lock:
-            if len(self.cache) > Config.MAX_CACHE_SIZE:
-                sorted_cache = sorted(self.cache.items(), 
-                                    key=lambda x: x[1].get("timestamp", 0), 
-                                    reverse=True)
-                self.cache = dict(sorted_cache[:Config.MAX_CACHE_SIZE])
+            response = self.session.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
             
-            try:
-                FileUtils.write_file(self.cache_file, json.dumps(self.cache, ensure_ascii=False, indent=2))
-                return True
-            except Exception as e:
-                Console.print_warning(f"保存缓存失败：{str(e)}")
-                return False
-    
-    def get(self, url: str) -> Optional[str]:
-        """获取缓存内容"""
-        with self.lock:
-            if url in self.cache:
-                cache_info = self.cache[url]
-                if time.time() - cache_info.get("timestamp", 0) < Config.CACHE_EXPIRE:
-                    if cache_info.get("valid", False):
-                        Console.print_info(f"缓存命中[有效]：{url[:50]}{'...' if len(url)>50 else ''}")
-                        return cache_info.get("content", "")
-                    else:
-                        Console.print_info(f"缓存命中[无效]：{url[:50]}{'...' if len(url)>50 else ''}（跳过）")
+            content = response.text.strip()
+            return content if len(content) > Config.MIN_CONTENT_LENGTH else None
+            
+        except Exception as e:
+            logger.debug(f"源抓取失败 {url}: {str(e)}")
             return None
     
-    def set(self, url: str, content: str, valid: bool = True):
-        """设置缓存"""
-        with self.lock:
-            self.cache[url] = {
-                "content": content,
-                "timestamp": time.time(),
-                "valid": valid
-            }
-
-class TemplateManager:
-    """模板管理器"""
-    
-    @staticmethod
-    def generate_default_template() -> bool:
-        """生成默认模板"""
-        default_categories = [
-            CategoryInfo("央视频道", ["CCTV1", "CCTV2", "CCTV3", "CCTV5", "CCTV6", "CCTV8", "CCTV13", "CCTV14", "CCTV15"], f"央视频道,{Config.CATEGORY_MARKER}"),
-            CategoryInfo("卫视频道", ["湖南卫视", "浙江卫视", "东方卫视", "江苏卫视", "北京卫视", "安徽卫视", "深圳卫视", "山东卫视"], f"卫视频道,{Config.CATEGORY_MARKER}"),
-            CategoryInfo("地方频道", ["广东卫视", "四川卫视", "湖北卫视", "河南卫视", "河北卫视", "辽宁卫视", "黑龙江卫视"], f"地方频道,{Config.CATEGORY_MARKER}"),
-            CategoryInfo("高清频道", ["CCTV1高清", "CCTV5高清", "湖南卫视高清", "浙江卫视高清"], f"高清频道,{Config.CATEGORY_MARKER}"),
-        ]
+    def _parse_channels_streaming(self, sources: List[str]) -> Generator[ChannelInfo, None, None]:
+        """流式解析频道，减少内存占用"""
+        seen_urls = set()
         
-        template_content = [
-            f"# IPTV分类模板（自动生成于 {time.strftime('%Y-%m-%d %H:%M:%S')}）",
-            f"# 系统：{platform.system()} | 格式说明：分类行（分类名,{Config.CATEGORY_MARKER}）、频道行（纯频道名）",
-            f"# 注意：只保留模板内明确列出的频道，不包含其他任何频道",
+        for i, content in enumerate(sources, 1):
+            if self._stop_event.is_set():
+                break
+                
+            channels_from_source = 0
+            for line in content.splitlines():
+                if self._stop_event.is_set():
+                    break
+                    
+                result = TextUtils.parse_channel_line(line)
+                if result:
+                    name, url = result
+                    
+                    # URL去重
+                    if url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+                    
+                    # 创建频道对象
+                    channel = ChannelInfo(name=name, url=url, source=f"Source_{i}")
+                    
+                    # 智能分辨率检测
+                    width, height, _ = ResolutionDetector.detect_from_name(name)
+                    channel.width = width
+                    channel.height = height
+                    
+                    channels_from_source += 1
+                    yield channel
+            
+            Console.print_info(f"源{i}: 解析{channels_from_source}个频道")
+    
+    def _advanced_ffmpeg_test(self, channel: ChannelInfo) -> ChannelInfo:
+        """使用FFmpeg进行高级流媒体测试"""
+        self.stats.ffmpeg_tests += 1
+        
+        if not self.ffmpeg_detector.is_available():
+            return channel
+        
+        try:
+            # 第一步：快速流媒体分析
+            Console.print_ffmpeg(f"分析流媒体: {channel.name}")
+            probe_data = self.ffmpeg_detector.analyze_stream(channel.url)
+            
+            if probe_data:
+                # 解析流媒体质量信息
+                stream_quality = self.ffmpeg_detector.parse_stream_quality(probe_data)
+                channel.stream_quality = stream_quality
+                channel.ffmpeg_supported = True
+                
+                # 验证流媒体质量
+                if (stream_quality.has_video and 
+                    stream_quality.video_bitrate >= Config.MIN_VIDEO_BITRATE and
+                    stream_quality.total_bitrate >= Config.MIN_VIDEO_BITRATE + Config.MIN_AUDIO_BITRATE):
+                    
+                    # 第二步：快速连接测试
+                    quick_test = self.ffmpeg_detector.quick_test_stream(channel.url, duration=3)
+                    if quick_test and quick_test.get('success'):
+                        channel.status = ChannelStatus.VALID
+                        channel.speed = quick_test.get('speed', 1.0)
+                        self.stats.ffmpeg_success += 1
+                        
+                        Console.print_success(
+                            f"{channel.name:<25} | "
+                            f"FFmpeg✅ | "
+                            f"码率:{channel.bitrate_str:>8} | "
+                            f"编码:{channel.codec_str:>10} | "
+                            f"分辨率:{channel.resolution_str:>9}"
+                        )
+                    else:
+                        channel.status = ChannelStatus.FORMAT_ERROR
+                        self.stats.network_errors += 1  # 修复：添加错误统计
+                else:
+                    channel.status = ChannelStatus.CODEC_ERROR
+                    self.stats.network_errors += 1  # 修复：添加错误统计
+            else:
+                channel.status = ChannelStatus.UNREACHABLE
+                self.stats.network_errors += 1  # 修复：添加错误统计
+                
+        except Exception as e:
+            logger.debug(f"FFmpeg测试异常 {channel.url}: {e}")
+            channel.status = ChannelStatus.UNREACHABLE
+            self.stats.network_errors += 1  # 修复：添加错误统计
+        
+        return channel
+    
+    def _basic_http_test(self, channel: ChannelInfo) -> ChannelInfo:
+        """基础HTTP测速 - 修复网络错误统计"""
+        try:
+            start_time = time.time()
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Range': 'bytes=0-102399'  # 100KB
+            }
+            
+            response = self.session.get(
+                channel.url,
+                headers=headers,
+                timeout=Config.SPEED_TEST_TIMEOUT,
+                stream=True
+            )
+            
+            if response.status_code in [200, 206]:
+                content_length = 0
+                start_read = time.time()
+                
+                for chunk in response.iter_content(8192):
+                    if self._stop_event.is_set():
+                        break
+                    content_length += len(chunk)
+                    if content_length >= 102400:  # 100KB
+                        break
+                    if time.time() - start_read > Config.SPEED_TEST_TIMEOUT:
+                        break
+                
+                total_time = time.time() - start_time
+                channel.delay = total_time
+                channel.speed = content_length / total_time / 1024 if total_time > 0 else 0
+                
+                if channel.speed >= Config.MIN_SPEED_KBPS and total_time <= Config.SPEED_TEST_TIMEOUT:
+                    channel.status = ChannelStatus.VALID
+                    Console.print_success(
+                        f"{channel.name:<25} | "
+                        f"HTTP✅ | "
+                        f"延迟:{channel.delay:5.2f}s | "
+                        f"速度:{channel.speed:6.1f}KB/s"
+                    )
+                else:
+                    channel.status = ChannelStatus.LOW_SPEED
+                    self.stats.network_errors += 1  # 修复：添加错误统计
+            else:
+                channel.status = ChannelStatus.UNREACHABLE
+                self.stats.network_errors += 1  # 修复：添加错误统计
+                
+        except requests.exceptions.Timeout:
+            channel.status = ChannelStatus.TIMEOUT
+            self.stats.network_errors += 1  # 修复：添加错误统计
+        except requests.exceptions.ConnectionError:
+            channel.status = ChannelStatus.UNREACHABLE
+            self.stats.network_errors += 1  # 修复：添加错误统计
+        except Exception:
+            channel.status = ChannelStatus.UNREACHABLE
+            self.stats.network_errors += 1  # 修复：添加错误统计
+        
+        channel.last_checked = time.time()
+        return channel
+    
+    def _hybrid_speed_test(self, channel: ChannelInfo) -> ChannelInfo:
+        """混合测速策略：FFmpeg优先，HTTP备用"""
+        # 首先尝试FFmpeg检测
+        ffmpeg_result = self._advanced_ffmpeg_test(channel)
+        
+        if ffmpeg_result.is_valid:
+            return ffmpeg_result
+        
+        # FFmpeg失败时使用HTTP测速
+        return self._basic_http_test(channel)
+    
+    def _fuzzy_template_matching(self, channels: List[ChannelInfo]) -> List[ChannelInfo]:
+        """模糊模板匹配 - 优化进度显示"""
+        Console.print_info("开始模板匹配...")
+        
+        template_lines = TemplateManager.load_template()
+        if not template_lines:
+            Console.print_warning("无模板文件，返回所有有效频道")
+            return channels  # 修复：无模板时返回所有频道
+        
+        template_structure = TemplateManager.parse_template_structure(template_lines)
+        if not template_structure:
+            Console.print_warning("模板解析为空，返回所有有效频道")
+            return channels  # 修复：空模板时返回所有频道
+        
+        # 获取所有模板频道名称
+        template_names = set()
+        for category_channels in template_structure.values():
+            template_names.update([name.lower().strip() for name in category_channels if name.strip()])
+        
+        Console.print_info(f"模板频道数: {len(template_names)}")
+        
+        # 精确匹配
+        matched_channels = []
+        exact_matches = 0
+        
+        for i, channel in enumerate(channels, 1):
+            channel_name_lower = channel.name.lower().strip()
+            if channel_name_lower in template_names:
+                matched_channels.append(channel)
+                exact_matches += 1
+            
+            # 优化：显示匹配进度
+            if i % 50 == 0 or i == len(channels):
+                Console.print_progress(i, len(channels), "模板匹配进度")
+        
+        Console.print_success(f"精确匹配: {exact_matches}/{len(channels)}")
+        
+        # 如果没有精确匹配，尝试模糊匹配
+        if exact_matches == 0 and FUZZYWUZZY_AVAILABLE:
+            Console.print_info("尝试模糊匹配...")
+            fuzzy_matches = 0
+            
+            for i, channel in enumerate(channels, 1):
+                if channel in matched_channels:  # 跳过已匹配的
+                    continue
+                    
+                channel_name_lower = channel.name.lower().strip()
+                best_score = 0
+                
+                for template_name in template_names:
+                    score = fuzz.token_sort_ratio(channel_name_lower, template_name)
+                    if score > Config.FUZZY_MATCH_THRESHOLD and score > best_score:
+                        best_score = score
+                
+                if best_score >= Config.FUZZY_MATCH_THRESHOLD:
+                    matched_channels.append(channel)
+                    fuzzy_matches += 1
+                    logger.debug(f"模糊匹配: {channel.name} -> {best_score}分")
+                
+                # 优化：显示模糊匹配进度
+                if i % 20 == 0 or i == len(channels):
+                    Console.print_progress(i, len(channels), "模糊匹配进度")
+            
+            Console.print_success(f"模糊匹配: {fuzzy_matches}个")
+        elif exact_matches == 0:
+            Console.print_warning("fuzzywuzzy 未安装，跳过模糊匹配")
+        
+        self.stats.template_matched = len(matched_channels)
+        Console.print_success(f"模板匹配完成: {len(matched_channels)}/{len(channels)}")
+        return matched_channels
+    
+    def health_check(self) -> Dict[str, Any]:
+        """系统健康检查"""
+        health_info = {
+            "version": Config.VERSION,
+            "running_time": self.stats.elapsed_time,
+            "active_threads": threading.active_count(),
+            "memory_peak_mb": self.stats.memory_peak,
+            "network_errors": self.stats.network_errors,
+            "cache_hits": self.stats.cache_hits,
+            "retry_attempts": self.stats.retry_attempts,
+            "ffmpeg_tests": self.stats.ffmpeg_tests,
+            "ffmpeg_success": self.stats.ffmpeg_success,
+            "ffmpeg_available": self.ffmpeg_detector.is_available(),
+        }
+        
+        if PSUTIL_AVAILABLE:
+            try:
+                process = psutil.Process()
+                health_info.update({
+                    "memory_current_mb": process.memory_info().rss / 1024 / 1024,
+                    "cpu_percent": process.cpu_percent(),
+                    "disk_usage": psutil.disk_usage('.')._asdict(),
+                })
+            except Exception:
+                pass
+        
+        return health_info
+    
+    def _generate_quality_report(self, channels: List[ChannelInfo]) -> bool:
+        """生成质量报告"""
+        try:
+            report = {
+                "generated_at": datetime.now().isoformat(),
+                "total_channels": len(channels),
+                "ffmpeg_tested": sum(1 for c in channels if c.ffmpeg_supported),
+                "quality_stats": {
+                    "uhd_8k": sum(1 for c in channels if c.quality == ResolutionQuality.UHD_8K),
+                    "uhd_4k": sum(1 for c in channels if c.quality == ResolutionQuality.UHD_4K),
+                    "fhd_1080p": sum(1 for c in channels if c.quality == ResolutionQuality.FHD_1080P),
+                    "hd_720p": sum(1 for c in channels if c.quality == ResolutionQuality.HD_720P),
+                    "sd_480p": sum(1 for c in channels if c.quality == ResolutionQuality.SD_480P),
+                },
+                "channels": []
+            }
+            
+            for channel in channels:
+                channel_info = {
+                    "name": channel.name,
+                    "url": channel.url,
+                    "resolution": channel.resolution_str,
+                    "bitrate": channel.bitrate_str,
+                    "codec": channel.codec_str,
+                    "speed": channel.speed,
+                    "delay": channel.delay,
+                    "ffmpeg_supported": channel.ffmpeg_supported,
+                    "quality": channel.quality.name,
+                    "stream_type": channel.stream_quality.stream_type.value,
+                    "has_video": channel.stream_quality.has_video,
+                    "has_audio": channel.stream_quality.has_audio,
+                    "is_live": channel.stream_quality.is_live,
+                }
+                report["channels"].append(channel_info)
+            
+            with open(Config.OUTPUT_QUALITY_REPORT, 'w', encoding='utf-8') as f:
+                json.dump(report, f, ensure_ascii=False, indent=2)
+            
+            Console.print_success(f"质量报告生成成功: {Config.OUTPUT_QUALITY_REPORT}")
+            return True
+            
+        except Exception as e:
+            Console.print_error(f"质量报告生成失败: {str(e)}")
+            return False
+    
+    def process(self) -> bool:
+        """优化主处理流程"""
+        Console.print_success(f"{Config.APP_NAME} v{Config.VERSION} 开始处理")
+        
+        try:
+            # 0. 启动健康监控
+            self._start_health_monitor()
+            
+            # 1. 系统初始化
+            self._initialize_system()
+            
+            # 2. 多源抓取
+            sources_content = self._fetch_multiple_sources()
+            if not sources_content:
+                Console.print_error("无有效源数据")
+                return False
+            
+            # 3. 智能解析（流式）
+            all_channels = list(self._parse_channels_streaming(sources_content))
+            if not all_channels:
+                Console.print_error("无有效频道数据")
+                return False
+            
+            self.stats.total_channels = len(all_channels)
+            Console.print_success(f"频道解析完成: {len(all_channels)}个频道")
+            
+            # 4. 智能测速（FFmpeg + HTTP混合）
+            valid_channels = self._speed_test_channels(all_channels)
+            if not valid_channels:
+                Console.print_error("无有效频道通过测速")
+                return False
+            
+            # 5. 模板匹配
+            final_channels = self._fuzzy_template_matching(valid_channels)
+            if not final_channels:
+                Console.print_error("无频道匹配模板")
+                return False
+            
+            # 6. 生成纯净输出
+            success = self._generate_outputs(final_channels)
+            
+            # 7. 生成质量报告
+            self._generate_quality_report(final_channels)
+            
+            if success:
+                self._print_final_stats()
+            
+            return success
+            
+        except KeyboardInterrupt:
+            Console.print_warning("用户中断处理")
+            self._stop_event.set()
+            return False
+        except Exception as e:
+            Console.print_error(f"处理异常: {str(e)}")
+            logger.exception("详细异常信息")
+            return False
+        finally:
+            self.stats.end_time = time.time()
+            self._stop_event.set()
+            if hasattr(self, 'session'):
+                self.session.close()
+            # 清理资源
+            self.cache_manager.clear_expired_cache()
+            Console.print_info("资源清理完成")
+    
+    def _initialize_system(self):
+        """系统初始化"""
+        Console.print_info("系统初始化中...")
+        Console.print_info(f"Python版本: {platform.python_version()}")
+        Console.print_info(f"平台: {platform.system()} {platform.release()}")
+        Console.print_info(f"CPU核心: {os.cpu_count()}")
+        Console.print_info(f"缓存目录: {Config.CACHE_DIR}")
+        Console.print_info(f"FFmpeg可用: {self.ffmpeg_detector.is_available()}")
+        
+        # 清理过期缓存
+        self.cache_manager.clear_expired_cache()
+    
+    def _fetch_multiple_sources(self) -> List[str]:
+        """优化多源并发抓取"""
+        Console.print_info("开始多源抓取...")
+        
+        sources = Config.SOURCE_URLS
+        sources_content = []
+        self.stats.total_sources = len(sources)
+        
+        with ThreadPoolExecutor(max_workers=Config.MAX_WORKERS_SOURCE) as executor:
+            futures = {executor.submit(self._fetch_single_source_with_retry, url): url for url in sources}
+            
+            for i, future in enumerate(as_completed(futures), 1):
+                url = futures[future]
+                try:
+                    content = future.result(timeout=30)
+                    if content:
+                        sources_content.append(content)
+                        self.stats.valid_sources += 1
+                        Console.print_success(f"[{i}/{len(sources)}] 抓取成功: {url}")
+                    else:
+                        Console.print_warning(f"[{i}/{len(sources)}] 抓取失败: {url}")
+                except Exception as e:
+                    Console.print_warning(f"[{i}/{len(sources)}] 抓取异常: {url} - {str(e)}")
+                
+                Console.print_progress(i, len(sources), "源抓取进度")
+        
+        Console.print_info(f"源抓取完成: {len(sources_content)}/{len(sources)}")
+        Console.print_info(f"缓存命中: {self.stats.cache_hits}")
+        return sources_content
+    
+    def _speed_test_channels(self, channels: List[ChannelInfo]) -> List[ChannelInfo]:
+        """优化智能测速 - 修复进度显示"""
+        Console.print_info("开始频道测速...")
+        
+        valid_channels = []
+        
+        with ThreadPoolExecutor(max_workers=Config.MAX_WORKERS_SPEED_TEST) as executor:
+            futures = {executor.submit(self._hybrid_speed_test, channel): channel 
+                      for channel in channels}
+            
+            for i, future in enumerate(as_completed(futures), 1):
+                if self._stop_event.is_set():
+                    break
+                    
+                channel = futures[future]
+                try:
+                    tested_channel = future.result(timeout=Config.FFMPEG_TIMEOUT + 5)
+                    if tested_channel.is_valid:
+                        valid_channels.append(tested_channel)
+                    
+                    # 优化进度显示频率
+                    if i % 5 == 0 or i == len(channels) or i <= 10:
+                        Console.print_progress(i, len(channels), "测速进度")
+                        
+                except Exception as e:
+                    logger.warning(f"测速异常 {channel.name}: {str(e)}")
+        
+        self.stats.speed_tested = len(valid_channels)
+        Console.print_success(f"测速完成: {len(valid_channels)}/{len(channels)}个有效")
+        Console.print_info(f"FFmpeg成功检测: {self.stats.ffmpeg_success}/{self.stats.ffmpeg_tests}")
+        return valid_channels
+    
+    def _generate_outputs(self, channels: List[ChannelInfo]) -> bool:
+        """生成纯净输出"""
+        Console.print_info("生成输出文件...")
+        
+        try:
+            # 生成TXT
+            txt_success = self._generate_txt_file(channels)
+            # 生成M3U
+            m3u_success = self._generate_m3u_file(channels)
+            
+            self.stats.final_channels = len(channels)
+            return txt_success and m3u_success
+            
+        except Exception as e:
+            Console.print_error(f"生成输出失败: {str(e)}")
+            return False
+    
+    def _generate_txt_file(self, channels: List[ChannelInfo]) -> bool:
+        """生成纯净TXT文件"""
+        try:
+            content = self._generate_txt_content(channels)
+            with open(Config.OUTPUT_TXT, 'w', encoding='utf-8') as f:
+                f.write(content)
+            Console.print_success(f"TXT文件生成成功: {Config.OUTPUT_TXT}")
+            return True
+        except Exception as e:
+            Console.print_error(f"TXT文件生成失败: {str(e)}")
+            return False
+    
+    def _generate_m3u_file(self, channels: List[ChannelInfo]) -> bool:
+        """生成纯净M3U文件"""
+        try:
+            content = self._generate_m3u_content(channels)
+            with open(Config.OUTPUT_M3U, 'w', encoding='utf-8') as f:
+                f.write(content)
+            Console.print_success(f"M3U文件生成成功: {Config.OUTPUT_M3U}")
+            return True
+        except Exception as e:
+            Console.print_error(f"M3U文件生成失败: {str(e)}")
+            return False
+    
+    def _generate_txt_content(self, channels: List[ChannelInfo]) -> str:
+        """生成纯净TXT内容"""
+        template = TemplateManager.load_template()
+        structure = TemplateManager.parse_template_structure(template) if template else {"默认分类": [c.name for c in channels]}
+        
+        lines = [
+            f"# IPTV频道列表 - {Config.APP_NAME} v{Config.VERSION}",
+            f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"# 总频道数: {len(channels)}",
+            f"# 纯净输出 - 无速度/分辨率标识",
             ""
         ]
         
-        for category in default_categories:
-            template_content.extend([
-                category.marker,
-                *[channel for channel in category.channels],
-                ""
-            ])
+        for category, names in structure.items():
+            lines.append(f"{category},#genre#")
+            
+            category_channels = [c for c in channels if c.name.lower() in [n.lower() for n in names]]
+            # 按速度排序
+            category_channels.sort(key=lambda x: x.speed, reverse=True)
+            
+            for channel in category_channels:
+                lines.append(f"{channel.name},{channel.url}")
+            lines.append("")
         
-        try:
-            success = FileUtils.write_file(Config.DEFAULT_TEMPLATE, "\n".join(template_content))
-            if success:
-                Console.print_success(f"默认模板生成成功：{os.path.abspath(Config.DEFAULT_TEMPLATE)}")
-            return success
-        except Exception as e:
-            Console.print_error(f"生成默认模板失败：{str(e)}")
-            return False
+        return "\n".join(lines)
     
-    @staticmethod
-    def read_template_strict() -> Tuple[Optional[List[CategoryInfo]], Optional[List[str]], Optional[List[TemplateStructure]]]:
-        """严格读取模板"""
-        if not os.path.exists(Config.DEFAULT_TEMPLATE):
-            Console.print_warning("分类模板不存在，自动生成...")
-            if not TemplateManager.generate_default_template():
-                return None, None, None
+    def _generate_m3u_content(self, channels: List[ChannelInfo]) -> str:
+        """生成纯净M3U内容"""
+        template = TemplateManager.load_template()
+        structure = TemplateManager.parse_template_structure(template) if template else {"默认分类": [c.name for c in channels]}
         
-        # 备份模板
-        try:
-            lines = FileUtils.read_file_lines(Config.DEFAULT_TEMPLATE)
-            FileUtils.write_file(Config.BACKUP_TEMPLATE, "\n".join([
-                f"# 模板备份（{time.strftime('%Y-%m-%d %H:%M:%S')}）",
-                f"# 源路径：{os.path.abspath(Config.DEFAULT_TEMPLATE)}",
-                *lines
-            ]))
-        except Exception as e:
-            Console.print_warning(f"模板备份失败：{str(e)}（不影响主流程）")
+        lines = ["#EXTM3U"]
         
-        categories = []
-        current_category = None
-        all_channels = []
-        template_structure = []
+        for category, names in structure.items():
+            category_channels = [c for c in channels if c.name.lower() in [n.lower() for n in names]]
+            # 按速度排序
+            category_channels.sort(key=lambda x: x.speed, reverse=True)
+            
+            for channel in category_channels:
+                lines.extend([
+                    f'#EXTINF:-1 group-title="{category}",{channel.name}',
+                    channel.url
+                ])
         
-        try:
-            for line_num, line in enumerate(FileUtils.read_file_lines(Config.DEFAULT_TEMPLATE), 1):
-                if not line or (line.startswith("#") and Config.CATEGORY_MARKER not in line):
-                    continue
-                
-                # 处理分类行
-                if Config.CATEGORY_MARKER in line:
-                    parts = [p.strip() for p in line.split(Config.CATEGORY_MARKER) if p.strip()]
-                    cat_name = parts[0] if parts else ""
-                    if not cat_name:
-                        Console.print_warning(f"第{line_num}行：分类名为空，忽略")
-                        current_category = None
-                        continue
-                    
-                    template_structure.append(TemplateStructure("category", cat_name, line_num=line_num))
-                    
-                    existing_cat = next((c for c in categories if c.name == cat_name), None)
-                    if existing_cat:
-                        current_category = cat_name
-                    else:
-                        categories.append(CategoryInfo(cat_name, [], f"{cat_name},{Config.CATEGORY_MARKER}"))
-                        current_category = cat_name
-                    continue
-                
-                # 处理频道行
-                if current_category is None:
-                    Console.print_warning(f"第{line_num}行：频道未分类，跳过（不保留未分类频道）")
-                    continue
-                
-                channel_name = TextUtils.clean_text(line.split(",")[0])
-                if not channel_name:
-                    Console.print_warning(f"第{line_num}行：频道名为空，忽略")
-                    continue
-                
-                template_structure.append(TemplateStructure("channel", channel_name, current_category, line_num))
-                
-                current_cat_channels = next(c.channels for c in categories if c.name == current_category)
-                if channel_name not in current_cat_channels:
-                    current_cat_channels.append(channel_name)
-                    if channel_name not in all_channels:
-                        all_channels.append(channel_name)
+        return "\n".join(lines)
+    
+    def _print_final_stats(self):
+        """打印最终统计"""
+        Console.print_success("处理完成！")
+        Console.print_info(f"处理耗时: {self.stats.elapsed_time:.2f}秒")
+        Console.print_info(f"有效源: {self.stats.valid_sources}/{self.stats.total_sources}")
+        Console.print_info(f"总频道: {self.stats.total_channels}")
+        Console.print_info(f"测速有效: {self.stats.speed_tested}")
+        Console.print_info(f"模板匹配: {self.stats.template_matched}")
+        Console.print_info(f"最终输出: {self.stats.final_channels}")
+        Console.print_info(f"缓存命中: {self.stats.cache_hits}")
+        Console.print_info(f"重试次数: {self.stats.retry_attempts}")
+        Console.print_info(f"FFmpeg测试: {self.stats.ffmpeg_tests}")
+        Console.print_info(f"FFmpeg成功: {self.stats.ffmpeg_success}")
         
-        except Exception as e:
-            Console.print_error(f"读取模板失败：{str(e)}")
-            return None, None, None
+        if self.stats.memory_peak > 0:
+            Console.print_info(f"内存峰值: {self.stats.memory_peak:.1f}MB")
         
-        # 输出统计
-        total_channels = sum(len(c.channels) for c in categories)
-        Console.print_success(f"模板读取完成 | 分类数：{len(categories)} | 总频道数：{total_channels}")
-        Console.print_info("注意：只保留模板内明确列出的频道，不包含其他任何频道")
+        if self.stats.network_errors > 0:
+            Console.print_warning(f"网络错误: {self.stats.network_errors}")
         
-        Console.print("  " + "-" * 60)
-        for idx, cat in enumerate(categories, 1):
-            Console.print(f"  {idx:2d}. {cat.name:<20} 频道数：{len(cat.channels):2d}")
-        Console.print("  " + "-" * 60)
-        
-        return categories, all_channels, template_structure
+        # 打印健康状态
+        health = self.health_check()
+        Console.print_info("系统健康状态:")
+        for key, value in health.items():
+            if key not in ['running_time', 'memory_peak_mb']:  # 这些已经显示过了
+                Console.print_info(f"  {key}: {value}")
 
-class SourceFetcher:
-    """源数据抓取器"""
+# ======================== 依赖检查 =========================
+def check_dependencies():
+    """检查依赖"""
+    print("正在检查依赖...")
     
-    def __init__(self):
-        self.cache_manager = CacheManager()
-        self.session = NetworkUtils.create_session()
+    dependencies = {
+        'requests': '网络请求',
+        'psutil': '系统监控',
+        'fuzzywuzzy': '模糊匹配',
+        'colorama': 'Windows颜色支持',
+    }
     
-    def fetch_single_source(self, url: str) -> Optional[str]:
-        """抓取单个源"""
-        # 检查缓存
-        cached_content = self.cache_manager.get(url)
-        if cached_content is not None:
-            return cached_content
-        
-        Console.print_info(f"开始抓取：{url[:50]}{'...' if len(url)>50 else ''}")
-        
+    missing = []
+    for package, description in dependencies.items():
         try:
-            # 适配多系统超时
-            connect_timeout = 8 if platform.system() == "Windows" else 5
-            read_timeout = 15 if platform.system() == "Windows" else 10
-            
-            response = self.session.get(
-                url, 
-                timeout=(connect_timeout, read_timeout),
-                allow_redirects=True
-            )
-            
-            if response.status_code == 200:
-                content = response.text.strip()
-                if len(content) >= Config.MIN_CONTENT_LEN:
-                    self.cache_manager.set(url, content, True)
-                    Console.print_success(f"抓取成功：{url[:50]}{'...' if len(url)>50 else ''}")
-                    return content
-                else:
-                    Console.print_warning(f"内容过短：{url[:50]}{'...' if len(url)>50 else ''}（{len(content)}字符）")
+            if package == 'fuzzywuzzy':
+                __import__('fuzzywuzzy.fuzz')
             else:
-                Console.print_warning(f"HTTP错误 {response.status_code}：{url[:50]}{'...' if len(url)>50 else ''}")
-                
-        except Exception as e:
-            Console.print_error(f"抓取失败：{url[:50]}{'...' if len(url)>50 else ''} - {str(e)}")
-        
-        self.cache_manager.set(url, "", False)
-        return None
+                __import__(package)
+            print(f"✅ {package} - {description}")
+        except ImportError:
+            print(f"❌ {package} - {description}")
+            missing.append(package)
     
-    def fetch_all_sources(self) -> List[str]:
-        """并发抓取所有源"""
-        sources_content = []
-        
-        with ThreadPoolExecutor(max_workers=Config.MAX_FETCH_WORKERS) as executor:
-            future_to_url = {
-                executor.submit(self.fetch_single_source, url): url 
-                for url in Config.SOURCE_URLS
-            }
-            
-            for future in as_completed(future_to_url):
-                url = future_to_url[future]
-                try:
-                    content = future.result()
-                    if content:
-                        sources_content.append(content)
-                except Exception as e:
-                    Console.print_error(f"抓取异常：{url} - {str(e)}")
-                
-                # 请求间隔
-                time.sleep(random.choice(Config.REQ_INTERVAL))
-        
-        # 保存缓存
-        self.cache_manager.save_cache()
-        return sources_content
-
-class ChannelProcessor:
-    """频道处理器"""
+    # 检查FFmpeg
+    detector = FFmpegDetector()
+    if detector.is_available():
+        print("✅ FFmpeg - 流媒体分析")
+    else:
+        print("❌ FFmpeg - 流媒体分析 (未找到)")
+        missing.append('ffmpeg')
     
-    @staticmethod
-    def parse_channels(content: str) -> List[Tuple[str, str]]:
-        """从内容解析频道列表"""
-        channels = []
-        for line in content.splitlines():
-            result = TextUtils.parse_channel_line(line)
-            if result:
-                channels.append(result)
-        return channels
-    
-    @staticmethod
-    def speed_test_single(channel_data: Tuple[str, str]) -> ChannelInfo:
-        """单频道测速"""
-        name, url = channel_data
-        if not TextUtils.is_valid_url(url):
-            return ChannelInfo(name, url, float('inf'), 0.0)
-        
-        try:
-            start_time = time.time()
-            response = requests.get(
-                url, 
-                timeout=Config.SPEED_TEST_TIMEOUT,
-                headers={"User-Agent": "Mozilla/5.0"},
-                stream=True
-            )
-            
-            if response.status_code == 200:
-                # 读取前10KB计算速度
-                content = b""
-                for chunk in response.iter_content(chunk_size=1024):
-                    content += chunk
-                    if len(content) >= 10240:  # 10KB
-                        break
-                elapsed = time.time() - start_time
-                speed = len(content) / elapsed / 1024 if elapsed > 0 else 0  # KB/s
-                return ChannelInfo(name, url, elapsed, speed)
-        except Exception:
-            pass  # 测速失败是正常情况
-        
-        return ChannelInfo(name, url, float('inf'), 0.0)
-    
-    @staticmethod
-    def speed_test_channels(channels: List[Tuple[str, str]]) -> List[ChannelInfo]:
-        """并发测速频道"""
-        Console.print_info(f"开始测速（{len(channels)}个频道，{Config.MAX_SPEED_TEST_WORKERS}线程）...")
-        
-        valid_channels = []
-        with ThreadPoolExecutor(max_workers=Config.MAX_SPEED_TEST_WORKERS) as executor:
-            future_to_channel = {
-                executor.submit(ChannelProcessor.speed_test_single, channel): channel 
-                for channel in channels
-            }
-            
-            for future in as_completed(future_to_channel):
-                channel_info = future.result()
-                if channel_info.delay < float('inf'):
-                    valid_channels.append(channel_info)
-                    Console.print_success(f"{channel_info.name:<15} | 延迟: {channel_info.delay:.2f}s | 速度: {channel_info.speed:.1f} KB/s")
-                else:
-                    Console.print_error(f"{channel_info.name:<15} | 测速失败")
-        
-        # 按延迟排序
-        valid_channels.sort(key=lambda x: x.delay)
-        Console.print_success(f"测速完成 | 有效频道: {len(valid_channels)}/{len(channels)}")
-        return valid_channels
-
-class ResolutionFilter:
-    """分辨率过滤器"""
-    
-    @staticmethod
-    def detect_stream_resolution(channel_info: ChannelInfo) -> ChannelInfo:
-        """检测流媒体分辨率"""
-        width, height, res_name, quality = TextUtils.parse_resolution(channel_info.name)
-        
-        # 如果从名称中已经解析到分辨率信息
-        if width and height:
-            channel_info.width = width
-            channel_info.height = height
-            channel_info.resolution = res_name
-            channel_info.quality = quality
-            return channel_info
-        
-        # 尝试通过HTTP请求获取分辨率信息
-        try:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Range": "bytes=0-50000"
-            }
-            
-            response = requests.get(
-                channel_info.url,
-                headers=headers,
-                timeout=Config.RESOLUTION_FILTER["timeout"],
-                stream=True
-            )
-            
-            if response.status_code == 200:
-                content_type = response.headers.get('Content-Type', '').lower()
-                if 'video' in content_type or any(ext in channel_info.url.lower() for ext in ['.m3u8', '.ts', '.flv', '.mp4']):
-                    # 这里可以扩展为实际解析视频流信息
-                    pass
-                    
-        except Exception:
-            pass  # 分辨率检测失败是正常情况
-        
-        return channel_info
-    
-    @staticmethod
-    def is_low_resolution(channel_info: ChannelInfo) -> bool:
-        """判断是否为低分辨率"""
-        low_width, low_height = Config.RESOLUTION_FILTER["low_res_threshold"]
-        
-        # 明确标记为低质量的
-        if channel_info.quality == ResolutionQuality.LOW_QUALITY:
-            return True
-        
-        # 分辨率低于阈值的
-        if channel_info.width > 0 and channel_info.height > 0:
-            if channel_info.width < low_width and channel_info.height < low_height:
-                return True
-        
+    if missing:
+        print(f"\n缺少依赖: {', '.join(missing)}")
+        print("安装命令: pip install " + " ".join([p for p in missing if p != 'ffmpeg']))
+        if 'ffmpeg' in missing:
+            print("FFmpeg 需要手动安装:")
+            print("  Ubuntu: sudo apt install ffmpeg")
+            print("  macOS: brew install ffmpeg")
+            print("  Windows: 下载 https://ffmpeg.org/download.html")
         return False
-    
-    @staticmethod
-    def filter_by_resolution(channels: List[ChannelInfo]) -> List[ChannelInfo]:
-        """根据分辨率过滤频道"""
-        if not Config.RESOLUTION_FILTER["enable"]:
-            Console.print_warning("分辨率过滤未启用，跳过过滤")
-            return channels
-        
-        Console.print_info(f"开始严格分辨率过滤（{len(channels)}个频道）...")
-        Console.print_info(f"过滤标准：≥{Config.RESOLUTION_FILTER['min_width']}x{Config.RESOLUTION_FILTER['min_height']} | 移除低分辨率：{Config.RESOLUTION_FILTER['remove_low_resolution']}")
-        
-        min_width = Config.RESOLUTION_FILTER["min_width"]
-        min_height = Config.RESOLUTION_FILTER["min_height"]
-        filtered_channels = []
-        
-        with ThreadPoolExecutor(max_workers=Config.RESOLUTION_FILTER["max_resolution_workers"]) as executor:
-            future_to_channel = {
-                executor.submit(ResolutionFilter.detect_stream_resolution, channel): channel 
-                for channel in channels
-            }
-            
-            stats = {"high_res": 0, "low_res": 0, "unknown": 0, "removed_low": 0}
-            
-            for future in as_completed(future_to_channel):
-                channel_info = future.result()
-                
-                should_keep = False
-                status_color = 'red'
-                status = "过滤"
-                
-                # 高分辨率
-                if channel_info.width >= min_width and channel_info.height >= min_height:
-                    should_keep = True
-                    stats["high_res"] += 1
-                    status_color = 'green'
-                    status = "高清"
-                
-                # 分辨率未知
-                elif channel_info.width == 0 and channel_info.height == 0:
-                    if Config.RESOLUTION_FILTER["keep_unknown"] and not Config.RESOLUTION_FILTER["strict_mode"]:
-                        should_keep = True
-                        stats["unknown"] += 1
-                        status_color = 'yellow'
-                        status = "未知(保留)"
-                    else:
-                        stats["unknown"] += 1
-                        status_color = 'red'
-                        status = "未知(过滤)"
-                
-                # 低分辨率
-                elif ResolutionFilter.is_low_resolution(channel_info):
-                    if Config.RESOLUTION_FILTER["remove_low_resolution"]:
-                        stats["low_res"] += 1
-                        stats["removed_low"] += 1
-                        status_color = 'red'
-                        status = "低清(过滤)"
-                    else:
-                        should_keep = True
-                        stats["low_res"] += 1
-                        status_color = 'yellow'
-                        status = "低清(保留)"
-                
-                # 中等分辨率但未达到最低标准
-                elif channel_info.width > 0 and channel_info.height > 0:
-                    if not Config.RESOLUTION_FILTER["strict_mode"]:
-                        should_keep = True
-                        stats["low_res"] += 1
-                        status_color = 'yellow'
-                        status = "标清"
-                    else:
-                        stats["low_res"] += 1
-                        status_color = 'red'
-                        status = "标清(过滤)"
-                
-                if should_keep:
-                    filtered_channels.append(channel_info)
-                
-                res_display = f"{channel_info.width}x{channel_info.height}" if channel_info.width and channel_info.height else "未知"
-                Console.print(f"📺 {channel_info.name:<20} | 分辨率: {res_display:<10} | 质量: {channel_info.resolution:<8} | 状态: {status}", status_color)
-        
-        # 按分辨率优先级排序
-        filtered_channels.sort(key=lambda x: (
-            TextUtils.get_resolution_priority(x.resolution) if x.resolution != "unknown" else 999,
-            x.delay
-        ))
-        
-        # 输出统计
-        Console.print_info("分辨率过滤统计：")
-        Console.print(f"  ├─ 高清保留：{stats['high_res']} (≥{min_width}x{min_height})", 'green')
-        Console.print(f"  ├─ 标清保留：{stats['low_res'] - stats['removed_low']}", 'yellow')
-        Console.print(f"  ├─ 未知保留：{stats['unknown']}", 'yellow')
-        Console.print(f"  ├─ 低清过滤：{stats['removed_low']}", 'red')
-        Console.print(f"  └─ 总计过滤：{len(channels) - len(filtered_channels)}/{len(channels)}", 'red')
-        
-        Console.print_success(f"严格分辨率过滤完成 | 最终保留: {len(filtered_channels)}/{len(channels)} 个频道")
-        return filtered_channels
-
-class TemplateMatcher:
-    """模板匹配器"""
-    
-    @staticmethod
-    def filter_channels_by_template(valid_channels: List[ChannelInfo], 
-                                  template_channels: List[str],
-                                  template_structure: List[TemplateStructure]) -> List[ChannelInfo]:
-        """严格按模板过滤频道"""
-        Console.print_info("开始按模板严格过滤频道...")
-        
-        # 创建频道名称映射
-        template_channel_map = {}
-        for template_channel in template_channels:
-            normalized_name = TextUtils.normalize_channel_name(template_channel)
-            template_channel_map[normalized_name] = template_channel
-        
-        # 过滤和匹配频道
-        filtered_channels = []
-        matched_count = 0
-        unmatched_count = 0
-        
-        for template_item in template_structure:
-            if template_item.type == "channel":
-                template_channel_name = template_item.name
-                
-                # 查找匹配的源频道
-                matched_source_channels = []
-                for source_channel in valid_channels:
-                    source_name = source_channel.name
-                    
-                    # 直接名称匹配
-                    if template_channel_name in source_name or source_name in template_channel_name:
-                        matched_source_channels.append(source_channel)
-                        continue
-                    
-                    # 标准化匹配
-                    normalized_source = TextUtils.normalize_channel_name(source_name)
-                    normalized_template = TextUtils.normalize_channel_name(template_channel_name)
-                    
-                    if normalized_template in normalized_source or normalized_source in normalized_template:
-                        matched_source_channels.append(source_channel)
-                        continue
-                
-                if matched_source_channels:
-                    # 选择最佳匹配（按延迟排序）
-                    matched_source_channels.sort(key=lambda x: x.delay)
-                    best_channel = matched_source_channels[0]
-                    # 使用模板中的频道名
-                    best_channel.name = template_channel_name
-                    filtered_channels.append(best_channel)
-                    matched_count += 1
-                    Console.print_success(f"模板匹配: {template_channel_name} -> {matched_source_channels[0].name}")
-                else:
-                    unmatched_count += 1
-                    Console.print_warning(f"未找到匹配: {template_channel_name}")
-        
-        Console.print_info("模板匹配统计：")
-        Console.print(f"  ├─ 成功匹配：{matched_count}/{len([x for x in template_structure if x.type == 'channel'])}", 'green')
-        Console.print(f"  ├─ 未找到匹配：{unmatched_count}", 'yellow')
-        Console.print(f"  └─ 最终保留：{len(filtered_channels)} 个频道", 'green')
-        
-        return filtered_channels
-    
-    @staticmethod
-    def categorize_channels_strict(valid_channels: List[ChannelInfo],
-                                 template_structure: List[TemplateStructure]) -> Dict[str, List[ChannelInfo]]:
-        """严格按照模板结构分类频道"""
-        categorized = {}
-        current_category = None
-        
-        # 初始化分类结构
-        for item in template_structure:
-            if item.type == "category":
-                categorized[item.name] = []
-                current_category = item.name
-        
-        # 分配频道到分类
-        for template_item in template_structure:
-            if template_item.type == "channel":
-                channel_name = template_item.name
-                category_name = template_item.category
-                
-                # 查找对应的源频道数据
-                matched_channel = next((ch for ch in valid_channels if ch.name == channel_name), None)
-                
-                if matched_channel and category_name in categorized:
-                    categorized[category_name].append(matched_channel)
-        
-        # 移除空分类
-        empty_categories = [cat for cat, channels in categorized.items() if not channels]
-        for empty_cat in empty_categories:
-            del categorized[empty_cat]
-            Console.print_warning(f"移除空分类: {empty_cat}")
-        
-        return categorized
-    
-    @staticmethod
-    def limit_interfaces_per_channel(categorized_channels: Dict[str, List[ChannelInfo]]) -> Dict[str, List[ChannelInfo]]:
-        """限制单频道接口数量"""
-        limited_channels = {}
-        
-        for category, channels in categorized_channels.items():
-            # 按频道名分组
-            channel_groups = {}
-            for channel_data in channels:
-                name = channel_data.name
-                if name not in channel_groups:
-                    channel_groups[name] = []
-                channel_groups[name].append(channel_data)
-            
-            # 每个频道保留最佳接口
-            limited_list = []
-            for name, interfaces in channel_groups.items():
-                interfaces.sort(key=lambda x: x.delay)
-                limited_list.extend(interfaces[:Config.MAX_INTERFACES_PER_CHANNEL])
-            
-            limited_channels[category] = limited_list
-        
-        return limited_channels
-
-class OutputGenerator:
-    """输出生成器"""
-    
-    @staticmethod
-    def generate_txt_output(categorized_channels: Dict[str, List[ChannelInfo]],
-                          template_structure: List[TemplateStructure]) -> bool:
-        """生成TXT格式输出"""
-        lines = [
-            f"# IPTV频道列表（生成时间：{time.strftime('%Y-%m-%d %H:%M:%S')}）",
-            f"# 总频道数：{sum(len(channels) for channels in categorized_channels.values())}",
-            f"# 分类数：{len(categorized_channels)}",
-            f"# 严格按照模板排序，只保留模板内频道，不包含其他频道",
-        ]
-        
-        if Config.RESOLUTION_FILTER["enable"]:
-            lines.append(f"# 分辨率过滤：最小 {Config.RESOLUTION_FILTER['min_width']}x{Config.RESOLUTION_FILTER['min_height']}")
-        
-        lines.append("")
-        
-        current_category = None
-        for item in template_structure:
-            if item.type == "category":
-                current_category = item.name
-                if current_category in categorized_channels and categorized_channels[current_category]:
-                    lines.append(f"{current_category},{Config.CATEGORY_MARKER}")
-            
-            elif item.type == "channel":
-                channel_name = item.name
-                if current_category and current_category in categorized_channels:
-                    channel_data = next((ch for ch in categorized_channels[current_category] if ch.name == channel_name), None)
-                    if channel_data:
-                        if channel_data.resolution != "unknown" and channel_data.quality != ResolutionQuality.LOW_QUALITY:
-                            lines.append(f"{channel_data.name} [{channel_data.resolution}],{channel_data.url}")
-                        else:
-                            lines.append(f"{channel_data.name},{channel_data.url}")
-        
-        lines.append("")
-        
-        success = FileUtils.write_file(Config.TXT_OUTPUT, "\n".join(lines))
-        if success:
-            Console.print_success(f"TXT文件生成成功：{os.path.abspath(Config.TXT_OUTPUT)}")
-        return success
-    
-    @staticmethod
-    def generate_m3u_output(categorized_channels: Dict[str, List[ChannelInfo]],
-                          template_structure: List[TemplateStructure]) -> bool:
-        """生成M3U格式输出"""
-        lines = [
-            "#EXTM3U",
-            f"# Generated by IPTV Tool at {time.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"# Strict Template Ordering - No Other Channels",
-        ]
-        
-        if Config.RESOLUTION_FILTER["enable"]:
-            lines.append(f"# Resolution Filter: min {Config.RESOLUTION_FILTER['min_width']}x{Config.RESOLUTION_FILTER['min_height']}")
-        
-        current_category = None
-        for item in template_structure:
-            if item.type == "category":
-                current_category = item.name
-            
-            elif item.type == "channel":
-                channel_name = item.name
-                if current_category and current_category in categorized_channels:
-                    channel_data = next((ch for ch in categorized_channels[current_category] if ch.name == channel_name), None)
-                    if channel_data:
-                        if channel_data.resolution != "unknown" and channel_data.quality != ResolutionQuality.LOW_QUALITY:
-                            display_name = f"{channel_data.name} [{channel_data.resolution}]"
-                        else:
-                            display_name = channel_data.name
-                        
-                        lines.extend([
-                            f'#EXTINF:-1 group-title="{current_category}",{display_name}',
-                            channel_data.url
-                        ])
-        
-        success = FileUtils.write_file(Config.M3U_OUTPUT, "\n".join(lines))
-        if success:
-            Console.print_success(f"M3U文件生成成功：{os.path.abspath(Config.M3U_OUTPUT)}")
-        return success
-    
-    @staticmethod
-    def print_statistics(categorized_channels: Dict[str, List[ChannelInfo]],
-                       template_structure: List[TemplateStructure]):
-        """打印统计信息"""
-        Console.print_separator("📊 生成统计")
-        
-        total_channels = sum(len(channels) for channels in categorized_channels.values())
-        template_channel_count = len([x for x in template_structure if x.type == "channel"])
-        
-        Console.print_info("模板匹配情况：")
-        Console.print(f"  ├─ 模板频道数：{template_channel_count}", 'green')
-        Console.print(f"  ├─ 实际匹配数：{total_channels}", 'green')
-        Console.print(f"  └─ 匹配成功率：{total_channels/template_channel_count*100:.1f}%", 'yellow')
-        
-        Console.print_info("频道分布：")
-        for category, channels in categorized_channels.items():
-            if channels:
-                Console.print(f"  ├─ {category:<15}：{len(channels):>3} 个频道", 'green')
-        
-        Console.print_info("汇总信息：")
-        Console.print(f"  ├─ 总频道数：{total_channels}", 'green')
-        Console.print(f"  ├─ 分类数量：{len([c for c in categorized_channels.values() if c])}", 'green')
-        Console.print(f"  └─ 输出文件：{Config.TXT_OUTPUT}, {Config.M3U_OUTPUT}", 'green')
-        Console.print_info("提示：输出文件只包含模板内明确列出的频道，不包含任何其他频道")
-
-# ======================== 主程序 =========================
-class IPTVProcessor:
-    """IPTV处理器主类"""
-    
-    def __init__(self):
-        self.source_fetcher = SourceFetcher()
-        self.channel_processor = ChannelProcessor()
-        self.resolution_filter = ResolutionFilter()
-        self.template_matcher = TemplateMatcher()
-        self.output_generator = OutputGenerator()
-    
-    def process(self) -> bool:
-        """主处理流程"""
-        Console.print_separator("🎬 IPTV源处理工具启动 - 优化版")
-        
-        # 1. 配置验证
-        if not Config.validate():
-            return False
-        
-        # 2. 网络检查
-        if not NetworkUtils.check_connectivity():
-            return False
-        
-        # 3. 读取模板
-        Console.print_separator("📋 读取模板")
-        template_categories, all_template_channels, template_structure = TemplateManager.read_template_strict()
-        if not template_structure:
-            return False
-        
-        # 4. 抓取源数据
-        Console.print_separator("🌐 抓取源数据")
-        sources_content = self.source_fetcher.fetch_all_sources()
-        if not sources_content:
-            Console.print_error("未获取到有效源数据")
-            return False
-        
-        # 5. 解析频道
-        Console.print_separator("📋 解析频道")
-        all_channels = []
-        for content in sources_content:
-            all_channels.extend(self.channel_processor.parse_channels(content))
-        
-        Console.print_success(f"解析完成 | 原始频道数：{len(all_channels)}")
-        if not all_channels:
-            Console.print_error("未解析到有效频道")
-            return False
-        
-        # 6. 测速筛选
-        Console.print_separator("⚡ 频道测速")
-        valid_channels = self.channel_processor.speed_test_channels(all_channels)
-        if not valid_channels:
-            Console.print_error("无有效频道通过测速")
-            return False
-        
-        # 7. 严格模板匹配
-        Console.print_separator("🔍 严格模板匹配")
-        template_filtered_channels = self.template_matcher.filter_channels_by_template(
-            valid_channels, all_template_channels, template_structure
-        )
-        if not template_filtered_channels:
-            Console.print_error("无频道匹配模板要求")
-            return False
-        
-        # 8. 分辨率过滤
-        if Config.RESOLUTION_FILTER["enable"]:
-            Console.print_separator("🖥️ 严格分辨率过滤")
-            resolution_filtered_channels = self.resolution_filter.filter_by_resolution(template_filtered_channels)
-            if not resolution_filtered_channels:
-                Console.print_error("无频道通过分辨率过滤")
-                return False
-        else:
-            resolution_filtered_channels = template_filtered_channels
-        
-        # 9. 严格分类
-        Console.print_separator("📂 严格模板分类")
-        categorized_channels = self.template_matcher.categorize_channels_strict(
-            resolution_filtered_channels, template_structure
-        )
-        limited_channels = self.template_matcher.limit_interfaces_per_channel(categorized_channels)
-        
-        if not any(limited_channels.values()):
-            Console.print_error("无有效频道通过所有过滤条件")
-            return False
-        
-        # 10. 生成输出
-        Console.print_separator("💾 生成输出")
-        txt_success = self.output_generator.generate_txt_output(limited_channels, template_structure)
-        m3u_success = self.output_generator.generate_m3u_output(limited_channels, template_structure)
-        
-        if not (txt_success or m3u_success):
-            Console.print_error("输出文件生成失败")
-            return False
-        
-        # 11. 显示统计
-        self.output_generator.print_statistics(limited_channels, template_structure)
-        Console.print_success("IPTV严格模板处理完成！")
-        Console.print_info("提示：输出文件严格按照 demo.txt 模板顺序排列，只包含模板内的频道，不包含其他任何频道")
-        
+    else:
+        print("\n✅ 所有依赖已安装")
         return True
 
+# ======================== 主程序 =========================
 def main():
-    """程序入口点"""
+    """程序入口"""
     try:
+        # 显示启动信息
+        Console.print_success(f"{Config.APP_NAME} v{Config.VERSION}")
+        Console.print_info("正在初始化系统...")
+        
+        # 检查依赖（可选）
+        if len(sys.argv) > 1 and sys.argv[1] == '--check-deps':
+            if not check_dependencies():
+                return 1
+            return 0
+        
+        # 创建处理器实例
         processor = IPTVProcessor()
+        
+        # 显示系统信息
+        health = processor.health_check()
+        Console.print_info(f"FFmpeg可用: {health.get('ffmpeg_available', False)}")
+        
+        # 开始处理
+        Console.print_info("开始处理IPTV源...")
         success = processor.process()
-        sys.exit(0 if success else 1)
+        
+        if success:
+            Console.print_success("IPTV处理完成！")
+            Console.print_info(f"输出文件:")
+            Console.print_info(f"  - {Config.OUTPUT_TXT} (TXT格式)")
+            Console.print_info(f"  - {Config.OUTPUT_M3U} (M3U格式)")
+            Console.print_info(f"  - {Config.OUTPUT_QUALITY_REPORT} (质量报告)")
+        else:
+            Console.print_error("处理失败，请检查日志文件了解详情")
+            
+        return 0 if success else 1
+        
     except KeyboardInterrupt:
         Console.print_warning("用户中断程序执行")
-        sys.exit(1)
+        return 1
     except Exception as e:
-        Console.print_error(f"程序异常：{str(e)}")
-        logging.critical(f"主程序异常：{str(e)}", exc_info=True)
-        sys.exit(1)
+        Console.print_error(f"程序异常: {str(e)}")
+        logger.exception("程序异常详情:")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    # 检查依赖参数
+    if len(sys.argv) > 1 and sys.argv[1] == '--check-deps':
+        sys.exit(0 if check_dependencies() else 1)
+    else:
+        sys.exit(main())
