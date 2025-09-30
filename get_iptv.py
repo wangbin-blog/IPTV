@@ -90,10 +90,9 @@ class Config:
     
     # 源列表
     SOURCE_URLS = [
-        "https://raw.githubusercontent.com/iptv-org/iptv/master/channels.txt",
-        "https://mirror.ghproxy.com/https://raw.githubusercontent.com/iptv-org/iptv/master/channels.txt", 
-        "https://fastly.jsdelivr.net/gh/iptv-org/iptv@master/channels.txt",
-        "https://raw.fastgit.org/iptv-org/iptv/master/channels.txt",
+    "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
+    "http://47.120.41.246:8899/zb.txt",
+    "https://live.zbds.top/tv/iptv4.txt",
     ]
     
     # 文件配置
