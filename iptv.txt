@@ -1,12 +1,9 @@
 # IPTV频道列表 - IPTV Processor Ultimate v18.4
-# 生成时间: 2025-10-01 03:14:32
-# 总频道数: 4
+# 生成时间: 2025-10-01 05:08:15
+# 总频道数: 1
 # 纯净输出 - 无速度/分辨率标识
 
 央视频道,#genre#
 
 卫视频道,#genre#
-功夫电影,http://iptv.jxpan.vip:18888/aio/huya/11352941
-电影八点档,http://live.metshop.top/huya/880261?cdn=alicdn
-电影梁家辉,http://live.metshop.top/huya/11342429?cdn=alicdn
-金庸武侠,http://iptv.jxpan.vip:18888/aio/huya/11342435
+林正英电影,http://iptv.jxpan.vip:18888/aio/huya/11342421

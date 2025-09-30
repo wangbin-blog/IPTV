@@ -1,9 +1,3 @@
 #EXTM3U
-#EXTINF:-1 group-title="卫视频道",功夫电影
-http://iptv.jxpan.vip:18888/aio/huya/11352941
-#EXTINF:-1 group-title="卫视频道",电影八点档
-http://live.metshop.top/huya/880261?cdn=alicdn
-#EXTINF:-1 group-title="卫视频道",电影梁家辉
-http://live.metshop.top/huya/11342429?cdn=alicdn
-#EXTINF:-1 group-title="卫视频道",金庸武侠
-http://iptv.jxpan.vip:18888/aio/huya/11342435
+#EXTINF:-1 group-title="卫视频道",林正英电影
+http://iptv.jxpan.vip:18888/aio/huya/11342421
