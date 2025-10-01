@@ -151,9 +151,8 @@ class IPTVGenerator:
     def _create_default_source_urls(self):
         """创建默认源URL列表"""
         default_sources = [
-            "https://raw.githubusercontent.com/iptv-org/iptv/master/streams.m3u",
-            "https://mirror.ghproxy.com/https://raw.githubusercontent.com/freeiptv/iptv/master/playlist.m3u",
-            "https://raw.githubusercontent.com/YanG-1989/m3u/main/Adult.m3u"
+                "http://47.120.41.246:8899/zb.txt",
+                "https://live.zbds.top/tv/iptv4.txt",
         ]
         try:
             with open(Config.SOURCE_URLS, 'w', encoding='utf-8') as f:
