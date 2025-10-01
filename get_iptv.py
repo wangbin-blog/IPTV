@@ -393,9 +393,8 @@ class EnhancedConfig:
                 'max_cache_size': 1000
             },
             'sources': [
-                "https://raw.githubusercontent.com/iptv-org/iptv/master/channels.txt",
-                "https://mirror.ghproxy.com/https://raw.githubusercontent.com/iptv-org/iptv/master/channels.txt",
-                "https://fastly.jsdelivr.net/gh/iptv-org/iptv@master/channels.txt",
+                    "http://47.120.41.246:8899/zb.txt",
+                    "https://live.zbds.top/tv/iptv4.txt",
             ],
             'files': {
                 'output_txt': os.path.join(ROOT_DIR, "iptv.txt"),
