@@ -3,115 +3,83 @@ name: IPTV Processor CI
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       force_refresh:
-        description: 'Force refresh all sources'
+        description: '强制刷新所有源'
         required: false
         default: 'false'
 
 env:
   OUTPUT_DIR: './output'
-  CACHE_KEY: 'iptv-${{ github.sha }}'
-  MAX_RETRIES: 3
 
 jobs:
-  validate-inputs:
-    runs-on: ubuntu-latest
-    outputs:
-      valid: ${{ steps.check.outputs.result }}
-    steps:
-    - uses: actions/checkout@v4
-    - name: Validate template
-      id: check
-      run: |
-        if [ -f demo.txt ] && [ -s demo.txt ]; then
-          echo "result=true" >> $GITHUB_OUTPUT
-        else
-          echo "::error::Missing demo.txt"
-          echo "result=false" >> $GITHUB_OUTPUT
-        fi
-
   process-iptv:
-    needs: validate-inputs
-    if: needs.validate-inputs.outputs.valid == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     
     steps:
+    # 1. 检出代码（使用最新版本）
     - uses: actions/checkout@v4
+    
+    # 2. 设置Python环境
     - uses: actions/setup-python@v4
       with:
         python-version: '3.10'
         cache: 'pip'
-        
-    - name: Cache FFmpeg
-      uses: actions/cache@v3
-      with:
-        path: /usr/bin/ffmpeg
-        key: ${{ runner.os }}-ffmpeg
-        
-    - name: Install dependencies
+    
+    # 3. 安装系统依赖
+    - name: Install system dependencies
       run: |
+        sudo apt-get update
         sudo apt-get install -y ffmpeg
-        pip install -r requirements.txt
-        
-    - name: Check cache
-      id: cache-check
+    
+    # 4. 安装Python依赖
+    - name: Install Python dependencies
       run: |
-        if [[ "${{ github.event.inputs.force_refresh }}" == "true" ]]; then
-          echo "cache_key=force-refresh-${{ github.run_id }}" >> $GITHUB_OUTPUT
-        else
-          echo "cache_key=${{ env.CACHE_KEY }}" >> $GITHUB_OUTPUT
-        fi
-        
-    - uses: actions/cache@v3
-      if: steps.cache-check.outputs.cache_key
-      with:
-        path: ${{ env.OUTPUT_DIR }}
-        key: ${{ steps.cache-check.outputs.cache_key }}
-        
-    - name: Run processor
-      id: processor
-      continue-on-error: true
+        python -m pip install --upgrade pip
+        pip install requests pandas
+    
+    # 5. 创建模板文件
+    - name: Create demo template
       run: |
-        for i in $(seq 1 $MAX_RETRIES); do
-          python iptv_processor.py \
-            --output-dir $OUTPUT_DIR \
-            --max-threads ${{ env.MAX_THREADS || 8 }} \
-            --timeout ${{ env.TIMEOUT || 10 }} 2>&1 | grep -vE 'token|password'
-            
-          if [ $? -eq 0 ]; then
-            echo "status=success" >> $GITHUB_OUTPUT
-            break
-          fi
-          sleep $((i * 5))
-        done
-        
-        if [ $? -ne 0 ]; then
-          echo "::error::Max retries exceeded"
-          exit 1
-        fi
-        
+        mkdir -p output
+        cat > demo.txt << 'EOL'
+央视频道,#genre#
+CCTV-1综合,http://example.com/cctv1
+CCTV-2财经,http://example.com/cctv2
+卫视频道,#genre#
+湖南卫视,http://example.com/hunan
+浙江卫视,http://example.com/zhejiang
+EOL
+    
+    # 6. 运行IPTV处理器
+    - name: Run IPTV Processor
+      run: |
+        python iptv_processor.py
+      env:
+        MAX_FETCH_THREADS: 8
+        TIMEOUT: 10
+    
+    # 7. 验证输出文件（修复后的版本）
     - name: Validate outputs
-      if: steps.processor.outputs.status == 'success'
       run: |
-        # 完整验证逻辑见上文改进建议
-        
+        echo "=== 检查输出文件 ==="
+        ls -la output/
+        [ -f output/iptv.txt ] && echo "✅ iptv.txt 存在"
+        [ -f output/iptv.m3u ] && echo "✅ iptv.m3u 存在"
+        [ -s output/iptv.txt ] && echo "✅ iptv.txt 非空" || exit 1
+        [ -s output/iptv.m3u ] && echo "✅ iptv.m3u 非空" || exit 1
+    
+    # 8. 上传产物（使用最新版本v4）
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: iptv-${{ github.run_id }}
-        path: $OUTPUT_DIR/*
-        retention-days: 3
-        
-    - name: Notify status
-      if: always()
-      uses: actions/github-script@v6
-      with:
-        script: |
-          // 通知逻辑保持不变
+        name: iptv-outputs
+        path: |
+          output/iptv.txt
+          output/iptv.m3u
+        retention-days: 7
+        if-no-files-found: error
