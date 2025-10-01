@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-IPTV源处理工具 - 终极优化版 v18.4
-功能：多源抓取、智能测速(FFmpeg)、分辨率过滤、严格模板匹配、纯净输出
-特点：高性能、低内存、强健壮性、完整监控、极致优化、FFmpeg集成
-版本：18.4
-修复：网络错误统计、进度显示优化、模板处理逻辑、资源清理
+IPTV源处理工具 - 专业增强版 v20.0
+完整单一文件版本 - 所有生成文件在根目录
+功能：多源抓取、智能测速、协议支持、模板匹配、质量报告
+特点：高性能、模块化、强健壮性、完整监控、边界处理
 """
 
 import os
@@ -12,165 +11,83 @@ import sys
 import re
 import time
 import json
-import random
+import pickle
+import hashlib
 import logging
 import platform
 import threading
-import statistics
-import socket
-import hashlib
-import pickle
+import argparse
 import subprocess
-import tempfile
-import signal
-from typing import List, Dict, Tuple, Optional, Any, Union, Generator
+from typing import List, Dict, Tuple, Optional, Any, Set, Generator
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock, RLock, Event
+from threading import Lock, Event
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
-from functools import lru_cache
-import requests
 
-# ======================== 可选依赖处理 =========================
+# ======================== 依赖检查与兼容性处理 =========================
+try:
+    import requests
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+    print("❌ 需要安装 requests: pip install requests")
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+    print("❌ 需要安装 pyyaml: pip install pyyaml")
+
 try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-    print("提示: 安装 psutil 可获得系统监控功能: pip install psutil")
 
 try:
     from fuzzywuzzy import fuzz
     FUZZYWUZZY_AVAILABLE = True
 except ImportError:
     FUZZYWUZZY_AVAILABLE = False
-    print("提示: 安装 fuzzywuzzy 可获得模糊匹配功能: pip install fuzzywuzzy python-levenshtein")
 
 try:
     import colorama
     COLORAMA_AVAILABLE = True
 except ImportError:
     COLORAMA_AVAILABLE = False
-    print("提示: 安装 colorama 可在Windows获得更好的颜色支持: pip install colorama")
 
-# ======================== 配置系统 =========================
-class Config:
-    """集中配置管理"""
-    # 应用信息
-    VERSION = "18.4"
-    APP_NAME = "IPTV Processor Ultimate"
-    
-    # 网络配置
-    REQUEST_TIMEOUT = (6, 12)
-    SPEED_TEST_TIMEOUT = 15
-    CONNECT_TIMEOUT = 6
-    READ_TIMEOUT = 12
-    MAX_RETRIES = 3
-    RETRY_DELAY = 2
-    
-    # 并发配置
-    MAX_WORKERS_SOURCE = 8
-    MAX_WORKERS_SPEED_TEST = 6  # FFmpeg资源消耗大，降低并发
-    MAX_WORKERS_PARSING = 10
-    
-    # 性能阈值
-    MIN_SPEED_KBPS = 100  # 最低速度 100KB/s
-    MIN_CONTENT_LENGTH = 1000  # 最小内容长度
-    CACHE_MAX_AGE = 3600  # 缓存最大年龄(秒)
-    
-    # FFmpeg配置
-    FFMPEG_TIMEOUT = 20  # FFmpeg检测超时时间
-    FFMPEG_ANALYZE_DURATION = 10  # 分析时长(秒)
-    FFMPEG_PROBE_SIZE = 5000000  # 探测大小(5MB)
-    MIN_VIDEO_BITRATE = 100  # 最小视频码率(kbps)
-    MIN_AUDIO_BITRATE = 32   # 最小音频码率(kbps)
-    
-    # 源列表
-    SOURCE_URLS = [
-    "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
-    "http://47.120.41.246:8899/zb.txt",
-    "https://live.zbds.top/tv/iptv4.txt",
-    ]
-    
-    # 文件配置
-    TEMPLATE_FILE = "demo.txt"
-    OUTPUT_TXT = "iptv.txt"
-    OUTPUT_M3U = "iptv.m3u"
-    OUTPUT_QUALITY_REPORT = "quality_report.json"
-    CACHE_DIR = ".iptv_cache"
-    LOG_FILE = "iptv_processor.log"
-    
-    # 模板匹配
-    FUZZY_MATCH_THRESHOLD = 80  # 模糊匹配阈值
-
-# ======================== 日志配置 =========================
-class LogConfig:
-    """日志配置管理"""
-    @staticmethod
-    def setup_logging():
-        """配置日志系统"""
-        logger = logging.getLogger('IPTV_Processor')
-        logger.setLevel(logging.INFO)
-        
-        # 清除已有处理器
-        for handler in logger.handlers[:]:
-            logger.removeHandler(handler)
-        
-        # 创建格式化器
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        
-        # 文件处理器
-        file_handler = logging.FileHandler(Config.LOG_FILE, encoding='utf-8', mode='w')
-        file_handler.setFormatter(formatter)
-        
-        # 控制台处理器
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
-        
-        return logger
-
-# 初始化全局logger
-logger = LogConfig.setup_logging()
+# ======================== 根目录定义 =========================
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ======================== 数据类型定义 =========================
 class StreamType(Enum):
-    """流媒体类型"""
     HLS = "hls"
     HTTP = "http"
     RTMP = "rtmp"
     RTSP = "rtsp"
     UDP = "udp"
+    MMS = "mms"
     UNKNOWN = "unknown"
 
 class VideoCodec(Enum):
-    """视频编码"""
     H264 = "h264"
     H265 = "h265"
     MPEG4 = "mpeg4"
-    MPEG2 = "mpeg2"
-    VP9 = "vp9"
-    AV1 = "av1"
     UNKNOWN = "unknown"
 
 class AudioCodec(Enum):
-    """音频编码"""
     AAC = "aac"
     MP3 = "mp3"
     AC3 = "ac3"
-    OPUS = "opus"
     UNKNOWN = "unknown"
 
 class ResolutionQuality(Enum):
-    """分辨率质量等级"""
     UHD_8K = auto()
     UHD_4K = auto()
     FHD_1080P = auto()
@@ -180,38 +97,35 @@ class ResolutionQuality(Enum):
     UNKNOWN = auto()
 
 class ChannelStatus(Enum):
-    """频道状态"""
-    VALID = auto()
-    INVALID = auto()
-    TIMEOUT = auto()
-    UNREACHABLE = auto()
-    LOW_SPEED = auto()
-    DNS_ERROR = auto()
-    FORMAT_ERROR = auto()
-    CODEC_ERROR = auto()
+    VALID = "valid"
+    INVALID = "invalid"
+    TIMEOUT = "timeout"
+    UNREACHABLE = "unreachable"
+    LOW_SPEED = "low_speed"
 
 @dataclass
 class StreamQuality:
-    """流媒体质量信息"""
-    video_bitrate: int = 0  # kbps
-    audio_bitrate: int = 0  # kbps
-    total_bitrate: int = 0  # kbps
+    video_bitrate: int = 0
+    audio_bitrate: int = 0
+    total_bitrate: int = 0
     video_codec: VideoCodec = VideoCodec.UNKNOWN
     audio_codec: AudioCodec = AudioCodec.UNKNOWN
     stream_type: StreamType = StreamType.UNKNOWN
+    resolution: str = ""
+    fps: float = 0.0
     has_video: bool = False
     has_audio: bool = False
     is_live: bool = False
-    duration: float = 0.0
-    frame_rate: float = 0.0
-    sample_rate: int = 0
-    channels: int = 0
 
 @dataclass
 class ChannelInfo:
-    """频道信息类"""
     name: str
     url: str
+    group: str = ""
+    language: str = ""
+    country: str = ""
+    tvg_id: str = ""
+    tvg_logo: str = ""
     delay: float = 0.0
     speed: float = 0.0
     width: int = 0
@@ -222,15 +136,69 @@ class ChannelInfo:
     last_checked: float = field(default_factory=time.time)
     stream_quality: StreamQuality = field(default_factory=StreamQuality)
     ffmpeg_supported: bool = False
-    connection_time: float = 0.0
-    buffer_time: float = 0.0
     
     def __post_init__(self):
-        """初始化后自动计算质量等级"""
+        self._detect_protocol()
+        self._parse_extinf()
         self._update_quality()
+        self._validate_fields()
+    
+    def _validate_fields(self):
+        """字段验证和清理"""
+        self.name = self.name.strip() if self.name else "未知频道"
+        self.url = self.url.strip() if self.url else ""
+        self.group = self.group.strip() if self.group else "默认分类"
+        
+        # 名称长度限制
+        if len(self.name) > 200:
+            self.name = self.name[:197] + "..."
+    
+    def _detect_protocol(self):
+        """自动检测流媒体协议"""
+        if not self.url:
+            return
+            
+        url_lower = self.url.lower()
+        if '.m3u8' in url_lower:
+            self.stream_quality.stream_type = StreamType.HLS
+        elif url_lower.startswith('rtmp://'):
+            self.stream_quality.stream_type = StreamType.RTMP
+        elif url_lower.startswith('rtsp://'):
+            self.stream_quality.stream_type = StreamType.RTSP
+        elif url_lower.startswith('udp://'):
+            self.stream_quality.stream_type = StreamType.UDP
+        elif url_lower.startswith('mms://'):
+            self.stream_quality.stream_type = StreamType.MMS
+        else:
+            self.stream_quality.stream_type = StreamType.HTTP
+    
+    def _parse_extinf(self):
+        """解析M3U格式的EXTINF信息"""
+        if '#EXTINF' in self.name:
+            try:
+                parts = self.name.split(',', 1)
+                if len(parts) > 1:
+                    # 提取频道名称
+                    self.name = parts[1].strip()
+                    
+                    # 解析属性
+                    attrs = re.findall(r'([a-z\-]+)="([^"]+)"', parts[0])
+                    for key, value in attrs:
+                        if key == 'tvg-id':
+                            self.tvg_id = value
+                        elif key == 'group-title':
+                            self.group = value
+                        elif key == 'tvg-logo':
+                            self.tvg_logo = value
+                        elif key == 'language':
+                            self.language = value
+                        elif key == 'country':
+                            self.country = value
+            except Exception:
+                pass  # 解析失败时保持原始数据
     
     def _update_quality(self):
-        """更新质量等级"""
+        """更新分辨率质量"""
         if self.width >= 7680 or self.height >= 4320:
             self.quality = ResolutionQuality.UHD_8K
         elif self.width >= 3840 or self.height >= 2160:
@@ -247,34 +215,37 @@ class ChannelInfo:
             self.quality = ResolutionQuality.UNKNOWN
     
     @property
-    def is_valid(self) -> bool:
-        """检查是否有效"""
+    def is_valid(self):
         return self.status == ChannelStatus.VALID
     
     @property
-    def resolution_str(self) -> str:
-        """获取分辨率字符串"""
+    def resolution_str(self):
         if self.width > 0 and self.height > 0:
             return f"{self.width}x{self.height}"
         return "未知"
     
     @property
-    def bitrate_str(self) -> str:
-        """获取码率字符串"""
+    def bitrate_str(self):
         if self.stream_quality.total_bitrate > 0:
-            return f"{self.stream_quality.total_bitrate} kbps"
+            return f"{self.stream_quality.total_bitrate:.1f} kbps"
         return "未知"
     
-    @property
-    def codec_str(self) -> str:
-        """获取编码信息字符串"""
-        video = self.stream_quality.video_codec.value
-        audio = self.stream_quality.audio_codec.value
-        return f"{video}+{audio}"
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'name': self.name,
+            'url': self.url,
+            'group': self.group,
+            'status': self.status.value,
+            'resolution': self.resolution_str,
+            'bitrate': self.bitrate_str,
+            'protocol': self.stream_quality.stream_type.value,
+            'last_checked': datetime.fromtimestamp(self.last_checked).isoformat(),
+            'source': self.source
+        }
 
 @dataclass
 class ProcessingStats:
-    """处理统计"""
     total_sources: int = 0
     valid_sources: int = 0
     total_channels: int = 0
@@ -292,396 +263,20 @@ class ProcessingStats:
     ffmpeg_success: int = 0
     
     @property
-    def elapsed_time(self) -> float:
+    def elapsed_time(self):
         return (self.end_time or time.time()) - self.start_time
     
     def update_memory_peak(self):
-        """更新内存峰值"""
         if PSUTIL_AVAILABLE:
             try:
                 process = psutil.Process()
                 memory_mb = process.memory_info().rss / 1024 / 1024
                 self.memory_peak = max(self.memory_peak, memory_mb)
             except Exception:
-                pass  # 忽略内存监控错误
+                pass
 
-# ======================== FFmpeg检测器 =========================
-class FFmpegDetector:
-    """FFmpeg流媒体检测器 - 完整实现"""
-    
-    def __init__(self):
-        self.ffmpeg_path = self._find_ffmpeg()
-        self.ffprobe_path = self._find_ffprobe()
-        self._lock = Lock()
-    
-    def _find_ffmpeg(self) -> Optional[str]:
-        """查找FFmpeg可执行文件"""
-        possible_paths = [
-            'ffmpeg',
-            '/usr/bin/ffmpeg',
-            '/usr/local/bin/ffmpeg',
-            '/opt/homebrew/bin/ffmpeg',
-            'C:\\ffmpeg\\bin\\ffmpeg.exe',
-            'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
-        ]
-        
-        return self._check_executable(possible_paths, 'ffmpeg')
-    
-    def _find_ffprobe(self) -> Optional[str]:
-        """查找FFprobe可执行文件"""
-        possible_paths = [
-            'ffprobe',
-            '/usr/bin/ffprobe',
-            '/usr/local/bin/ffprobe',
-            '/opt/homebrew/bin/ffprobe',
-            'C:\\ffmpeg\\bin\\ffprobe.exe',
-            'C:\\Program Files\\ffmpeg\\bin\\ffprobe.exe',
-        ]
-        
-        return self._check_executable(possible_paths, 'ffprobe')
-    
-    def _check_executable(self, paths: List[str], tool_name: str) -> Optional[str]:
-        """检查可执行文件是否存在"""
-        for path in paths:
-            try:
-                result = subprocess.run(
-                    [path, '-version'],
-                    capture_output=True,
-                    timeout=5,
-                    text=True
-                )
-                if result.returncode == 0 and tool_name in result.stdout.lower():
-                    return path
-            except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
-                continue
-        return None
-    
-    def is_available(self) -> bool:
-        """检查FFmpeg是否可用"""
-        return self.ffmpeg_path is not None and self.ffprobe_path is not None
-    
-    def analyze_stream(self, url: str, timeout: int = Config.FFMPEG_TIMEOUT) -> Optional[Dict[str, Any]]:
-        """使用FFprobe分析流媒体"""
-        if not self.ffprobe_path:
-            return None
-        
-        try:
-            cmd = [
-                self.ffprobe_path,
-                '-v', 'quiet',
-                '-print_format', 'json',
-                '-show_format',
-                '-show_streams',
-                '-analyzeduration', '10000000',
-                '-probesize', '5000000',
-                url
-            ]
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=timeout,
-                text=True
-            )
-            
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-            else:
-                logger.debug(f"FFprobe分析失败: {result.stderr}")
-                return None
-                
-        except subprocess.TimeoutExpired:
-            logger.debug(f"FFmpeg分析超时: {url}")
-            return None
-        except json.JSONDecodeError as e:
-            logger.debug(f"FFmpeg输出JSON解析失败: {url} - {e}")
-            return None
-        except Exception as e:
-            logger.debug(f"FFmpeg分析异常: {url} - {e}")
-            return None
-    
-    def quick_test_stream(self, url: str, duration: int = 5) -> Optional[Dict[str, Any]]:
-        """快速测试流媒体可用性"""
-        if not self.ffmpeg_path:
-            return None
-        
-        try:
-            cmd = [
-                self.ffmpeg_path,
-                '-y',  # 覆盖输出文件
-                '-t', str(duration),  # 录制时长
-                '-i', url,
-                '-c', 'copy',  # 直接复制流
-                '-f', 'null',  # 输出到空设备
-                '-'
-            ]
-            
-            start_time = time.time()
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=duration + 10,
-                text=True
-            )
-            end_time = time.time()
-            
-            output = {
-                'success': result.returncode == 0,
-                'duration': end_time - start_time,
-                'output': result.stderr,
-                'error': result.stderr if result.returncode != 0 else None
-            }
-            
-            # 解析输出信息
-            if output['success']:
-                output.update({
-                    'bitrate': self._parse_bitrate(result.stderr),
-                    'speed': self._parse_speed(result.stderr)
-                })
-            
-            return output
-            
-        except subprocess.TimeoutExpired:
-            return {'success': False, 'error': 'timeout', 'duration': duration + 10}
-        except Exception as e:
-            return {'success': False, 'error': str(e), 'duration': 0}
-    
-    def _parse_bitrate(self, output: str) -> int:
-        """从FFmpeg输出解析码率"""
-        patterns = [
-            r'bitrate:\s*(\d+)\s*kb/s',
-            r'bitrate=(\d+)\s*kb/s',
-            r'Video:.*?(\d+)\s*kb/s',
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, output)
-            if match:
-                try:
-                    return int(match.group(1))
-                except ValueError:
-                    continue
-        return 0
-    
-    def _parse_speed(self, output: str) -> float:
-        """从FFmpeg输出解析速度"""
-        match = re.search(r'speed=\s*([\d.]+)x', output)
-        if match:
-            try:
-                return float(match.group(1))
-            except ValueError:
-                return 0.0
-        return 0.0
-    
-    def parse_stream_quality(self, probe_data: Dict[str, Any]) -> StreamQuality:
-        """解析流媒体质量信息"""
-        quality = StreamQuality()
-        
-        if not probe_data:
-            return quality
-        
-        try:
-            streams = probe_data.get('streams', [])
-            format_info = probe_data.get('format', {})
-            
-            # 分析视频流
-            video_streams = [s for s in streams if s.get('codec_type') == 'video']
-            if video_streams:
-                video = video_streams[0]
-                quality.has_video = True
-                quality.video_codec = self._parse_video_codec(video.get('codec_name', ''))
-                
-                # 解析码率
-                bit_rate = video.get('bit_rate')
-                if bit_rate:
-                    try:
-                        quality.video_bitrate = int(bit_rate) // 1000
-                    except (ValueError, TypeError):
-                        quality.video_bitrate = 0
-                
-                # 解析帧率
-                r_frame_rate = video.get('r_frame_rate', '0/1')
-                quality.frame_rate = self._parse_frame_rate(r_frame_rate)
-            
-            # 分析音频流
-            audio_streams = [s for s in streams if s.get('codec_type') == 'audio']
-            if audio_streams:
-                audio = audio_streams[0]
-                quality.has_audio = True
-                quality.audio_codec = self._parse_audio_codec(audio.get('codec_name', ''))
-                
-                # 解析音频码率
-                bit_rate = audio.get('bit_rate')
-                if bit_rate:
-                    try:
-                        quality.audio_bitrate = int(bit_rate) // 1000
-                    except (ValueError, TypeError):
-                        quality.audio_bitrate = 0
-                
-                # 解析音频参数
-                quality.sample_rate = int(audio.get('sample_rate', 0)) if audio.get('sample_rate') else 0
-                quality.channels = int(audio.get('channels', 0)) if audio.get('channels') else 0
-            
-            # 总码率
-            format_bit_rate = format_info.get('bit_rate')
-            if format_bit_rate:
-                try:
-                    quality.total_bitrate = int(format_bit_rate) // 1000
-                except (ValueError, TypeError):
-                    quality.total_bitrate = 0
-            
-            # 流类型检测
-            format_name = format_info.get('format_name', '')
-            quality.stream_type = self._detect_stream_type(format_name)
-            
-            # 直播流检测
-            quality.is_live = self._is_live_stream(format_info)
-            
-        except Exception as e:
-            logger.debug(f"解析流质量信息异常: {e}")
-        
-        return quality
-    
-    def _parse_video_codec(self, codec_name: str) -> VideoCodec:
-        """解析视频编码"""
-        codec_name = codec_name.lower()
-        if any(x in codec_name for x in ['h264', 'avc']):
-            return VideoCodec.H264
-        elif any(x in codec_name for x in ['h265', 'hevc']):
-            return VideoCodec.H265
-        elif 'mpeg4' in codec_name:
-            return VideoCodec.MPEG4
-        elif 'mpeg2' in codec_name:
-            return VideoCodec.MPEG2
-        elif 'vp9' in codec_name:
-            return VideoCodec.VP9
-        elif 'av1' in codec_name:
-            return VideoCodec.AV1
-        else:
-            return VideoCodec.UNKNOWN
-    
-    def _parse_audio_codec(self, codec_name: str) -> AudioCodec:
-        """解析音频编码"""
-        codec_name = codec_name.lower()
-        if 'aac' in codec_name:
-            return AudioCodec.AAC
-        elif 'mp3' in codec_name:
-            return AudioCodec.MP3
-        elif 'ac3' in codec_name:
-            return AudioCodec.AC3
-        elif 'opus' in codec_name:
-            return AudioCodec.OPUS
-        else:
-            return AudioCodec.UNKNOWN
-    
-    def _parse_frame_rate(self, frame_rate: str) -> float:
-        """解析帧率"""
-        try:
-            if '/' in frame_rate:
-                num, den = frame_rate.split('/')
-                if float(den) != 0:
-                    return float(num) / float(den)
-            return float(frame_rate)
-        except (ValueError, ZeroDivisionError):
-            return 0.0
-    
-    def _detect_stream_type(self, format_name: str) -> StreamType:
-        """检测流媒体类型"""
-        format_name = format_name.lower()
-        if 'hls' in format_name:
-            return StreamType.HLS
-        elif 'rtmp' in format_name:
-            return StreamType.RTMP
-        elif 'rtsp' in format_name:
-            return StreamType.RTSP
-        elif 'udp' in format_name:
-            return StreamType.UDP
-        elif 'http' in format_name:
-            return StreamType.HTTP
-        else:
-            return StreamType.UNKNOWN
-    
-    def _is_live_stream(self, format_info: Dict[str, Any]) -> bool:
-        """检测是否为直播流"""
-        try:
-            duration = float(format_info.get('duration', 0))
-            return duration < 60  # 小于60秒认为是直播流
-        except (ValueError, TypeError):
-            return True  # 无法解析duration时默认认为是直播流
-
-# ======================== 缓存系统 =========================
-class CacheManager:
-    """智能缓存管理系统"""
-    
-    def __init__(self, cache_dir: str = Config.CACHE_DIR):
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(exist_ok=True)
-        self._lock = Lock()
-    
-    def _get_cache_key(self, data: str) -> str:
-        """生成缓存键"""
-        return hashlib.md5(data.encode('utf-8')).hexdigest()
-    
-    def _get_cache_file(self, key: str, suffix: str = ".pkl") -> Path:
-        """获取缓存文件路径"""
-        return self.cache_dir / f"{key}{suffix}"
-    
-    def get_cached_data(self, key: str, max_age: int = Config.CACHE_MAX_AGE) -> Optional[Any]:
-        """获取缓存数据"""
-        cache_file = self._get_cache_file(key)
-        
-        with self._lock:
-            if not cache_file.exists():
-                return None
-            
-            file_age = time.time() - cache_file.stat().st_mtime
-            if file_age > max_age:
-                cache_file.unlink(missing_ok=True)
-                return None
-            
-            try:
-                with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
-            except (pickle.PickleError, EOFError, FileNotFoundError):
-                cache_file.unlink(missing_ok=True)
-                return None
-    
-    def set_cached_data(self, key: str, data: Any) -> bool:
-        """设置缓存数据"""
-        cache_file = self._get_cache_file(key)
-        
-        with self._lock:
-            try:
-                with open(cache_file, 'wb') as f:
-                    pickle.dump(data, f)
-                return True
-            except Exception as e:
-                logger.warning(f"缓存写入失败 {key}: {e}")
-                return False
-    
-    def clear_expired_cache(self, max_age: int = Config.CACHE_MAX_AGE):
-        """清理过期缓存"""
-        with self._lock:
-            for cache_file in self.cache_dir.glob("*.pkl"):
-                try:
-                    file_age = time.time() - cache_file.stat().st_mtime
-                    if file_age > max_age:
-                        cache_file.unlink(missing_ok=True)
-                except Exception:
-                    continue
-    
-    def get_cached_source(self, url: str) -> Optional[str]:
-        """获取缓存的源数据"""
-        return self.get_cached_data(f"source_{self._get_cache_key(url)}")
-    
-    def cache_source(self, url: str, content: str) -> bool:
-        """缓存源数据"""
-        return self.set_cached_data(f"source_{self._get_cache_key(url)}", content)
-
-# ======================== 控制台输出 =========================
+# ======================== 控制台输出系统 =========================
 class Console:
-    """优化控制台输出"""
-    
     COLORS = {
         'green': '\033[92m',
         'red': '\033[91m', 
@@ -698,7 +293,6 @@ class Console:
     
     @classmethod
     def _init_colors(cls):
-        """初始化颜色支持"""
         if cls._colors_initialized:
             return
             
@@ -713,8 +307,7 @@ class Console:
         cls._colors_initialized = True
     
     @classmethod
-    def print(cls, message: str, color: str = None, end: str = "\n"):
-        """线程安全打印"""
+    def print(cls, message: str, color: Optional[str] = None, end: str = "\n"):
         cls._init_colors()
         with cls._lock:
             color_code = cls.COLORS.get(color, '')
@@ -727,36 +320,25 @@ class Console:
     @classmethod
     def print_success(cls, message: str):
         cls.print(f"✅ {message}", 'green')
-        logger.info(f"SUCCESS: {message}")
     
     @classmethod
     def print_error(cls, message: str):
         cls.print(f"❌ {message}", 'red')
-        logger.error(f"ERROR: {message}")
     
     @classmethod
     def print_warning(cls, message: str):
         cls.print(f"⚠️ {message}", 'yellow')
-        logger.warning(f"WARNING: {message}")
     
     @classmethod
     def print_info(cls, message: str):
         cls.print(f"ℹ️ {message}", 'blue')
-        logger.info(f"INFO: {message}")
-    
-    @classmethod
-    def print_debug(cls, message: str):
-        cls.print(f"🔍 {message}", 'cyan')
-        logger.debug(f"DEBUG: {message}")
     
     @classmethod
     def print_ffmpeg(cls, message: str):
         cls.print(f"🎥 {message}", 'magenta')
-        logger.info(f"FFMPEG: {message}")
     
     @classmethod
     def print_progress(cls, current: int, total: int, prefix: str = ""):
-        """优化进度条显示"""
         with cls._lock:
             percent = current / total if total > 0 else 0
             filled = int(cls._progress_length * percent)
@@ -766,27 +348,188 @@ class Console:
             if current == total:
                 print()
 
-# ======================== 智能分辨率检测器 =========================
+# ======================== 增强配置系统 =========================
+class EnhancedConfig:
+    """增强的配置管理系统，所有文件生成在根目录"""
+    
+    _instance = None
+    _config_file = os.path.join(ROOT_DIR, "config.yaml")
+    _template_file = os.path.join(ROOT_DIR, "demo.txt")
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._init_config()
+        return cls._instance
+    
+    def _init_config(self):
+        """初始化配置系统"""
+        if not os.path.exists(self._config_file):
+            self._create_default_config()
+        self._load_config()
+    
+    def _create_default_config(self):
+        """创建默认配置文件"""
+        default_config = {
+            'version': "20.0",
+            'app_name': "IPTV Processor Pro",
+            'network': {
+                'timeout': 15,
+                'max_retries': 3,
+                'retry_delay': 2,
+                'proxy': None,
+                'user_agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                'speed_test_timeout': 10,
+                'min_speed_kbps': 500
+            },
+            'performance': {
+                'max_workers': {
+                    'source': 8,
+                    'speed_test': 6,
+                    'parsing': 10
+                },
+                'min_content_length': 1024,
+                'cache_max_age': 3600,
+                'max_cache_size': 1000
+            },
+            'sources': [
+                "https://raw.githubusercontent.com/iptv-org/iptv/master/channels.txt",
+                "https://mirror.ghproxy.com/https://raw.githubusercontent.com/iptv-org/iptv/master/channels.txt",
+                "https://fastly.jsdelivr.net/gh/iptv-org/iptv@master/channels.txt",
+            ],
+            'files': {
+                'output_txt': os.path.join(ROOT_DIR, "iptv.txt"),
+                'output_m3u': os.path.join(ROOT_DIR, "iptv.m3u"),
+                'quality_report': os.path.join(ROOT_DIR, "quality_report.json"),
+                'log_file': os.path.join(ROOT_DIR, "iptv_processor.log")
+            },
+            'streaming': {
+                'supported_protocols': ['http', 'https', 'hls', 'rtmp', 'rtsp', 'udp', 'mms'],
+                'test_duration': 10,
+                'buffer_size': 8192
+            }
+        }
+        
+        try:
+            with open(self._config_file, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(default_config, f, allow_unicode=True)
+            Console.print_success(f"默认配置文件已创建: {self._config_file}")
+        except Exception as e:
+            raise RuntimeError(f"创建配置文件失败: {e}")
+    
+    def _load_config(self):
+        """加载配置文件"""
+        try:
+            with open(self._config_file, 'r', encoding='utf-8') as f:
+                self._config = yaml.safe_load(f)
+            
+            # 环境变量覆盖
+            if os.getenv('IPTV_PROXY'):
+                self._config['network']['proxy'] = os.getenv('IPTV_PROXY')
+            if os.getenv('IPTV_TIMEOUT'):
+                try:
+                    self._config['network']['timeout'] = int(os.getenv('IPTV_TIMEOUT'))
+                except ValueError:
+                    Console.print_warning(f"无效的超时设置: {os.getenv('IPTV_TIMEOUT')}")
+                    
+        except Exception as e:
+            raise RuntimeError(f"加载配置文件失败: {e}")
+    
+    def __getattr__(self, name):
+        """动态获取配置项"""
+        if name in self._config:
+            return self._config[name]
+        raise AttributeError(f"Config has no attribute '{name}'")
+    
+    def get_output_path(self, key: str) -> str:
+        """获取输出文件路径"""
+        return self._config['files'][key]
+    
+    @property
+    def template_file(self):
+        """获取模板文件路径"""
+        return self._template_file
+
+# ======================== 工具类 =========================
+class TextUtils:
+    """文本处理工具类"""
+    
+    @staticmethod
+    def normalize_text(text: str) -> str:
+        """文本标准化处理"""
+        if not text or not isinstance(text, str):
+            return ""
+        return re.sub(r'\s+', ' ', text.strip())
+    
+    @staticmethod
+    def is_valid_url(url: str) -> bool:
+        """URL有效性验证"""
+        if not url or not isinstance(url, str) or len(url) > 1000:
+            return False
+        try:
+            result = urlparse(url)
+            return all([
+                result.scheme in ['http', 'https', 'rtmp', 'rtsp', 'udp', 'mms'], 
+                result.netloc,
+                len(result.netloc) <= 253
+            ])
+        except Exception:
+            return False
+    
+    @staticmethod
+    def parse_channel_line(line: str) -> Optional[Tuple[str, str]]:
+        """解析频道行，支持多种格式"""
+        if not line or not isinstance(line, str) or len(line) > 5000:
+            return None
+            
+        line = TextUtils.normalize_text(line)
+        if not line or line.startswith('##'):
+            return None
+        
+        # 处理M3U格式（在解析器中特殊处理）
+        if line.startswith('#EXTINF'):
+            return None
+        
+        # 多种分隔符支持
+        patterns = [
+            (r'^([^,]+?),\s*(https?://[^\s]+)$', '标准格式'),
+            (r'^([^|]+?)\|\s*(https?://[^\s]+)$', '竖线分隔'),
+            (r'^([^\t]+?)\t(https?://[^\s]+)$', '制表符分隔'),
+        ]
+        
+        for pattern, _ in patterns:
+            try:
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    name = TextUtils.normalize_text(match.group(1))
+                    url = TextUtils.normalize_text(match.group(2))
+                    if name and url and TextUtils.is_valid_url(url):
+                        return name, url
+            except Exception:
+                continue
+        
+        return None
+
 class ResolutionDetector:
-    """优化分辨率检测器"""
+    """分辨率检测器"""
     
     @staticmethod
     def detect_from_name(channel_name: str) -> Tuple[int, int, str]:
-        """从频道名称智能检测分辨率"""
-        if not channel_name:
+        """从频道名称检测分辨率"""
+        if not channel_name or not isinstance(channel_name, str):
             return 1280, 720, "auto"
         
         try:
             channel_lower = channel_name.lower()
             
-            # 优先检测数字格式
+            # 精确分辨率匹配
             match = re.search(r'(\d{3,4})[×xX*](\d{3,4})', channel_lower)
             if match:
                 width, height = int(match.group(1)), int(match.group(2))
                 if 100 <= width <= 7680 and 100 <= height <= 4320:
                     return width, height, f"{width}x{height}"
             
-            # 检测标准分辨率名称
+            # 标准分辨率匹配
             if any(x in channel_lower for x in ['8k', '4320p']):
                 return 7680, 4320, "8K"
             elif any(x in channel_lower for x in ['4k', 'uhd', '2160p']):
@@ -797,74 +540,62 @@ class ResolutionDetector:
                 return 1280, 720, "720P"
             elif any(x in channel_lower for x in ['480p', 'sd', '标清']):
                 return 854, 480, "480P"
+            elif any(x in channel_lower for x in ['360p', 'low']):
+                return 640, 360, "360P"
                 
-        except Exception as e:
-            logger.debug(f"分辨率检测异常: {channel_name} - {str(e)}")
+        except Exception:
+            pass
         
         return 1280, 720, "auto"
 
-# ======================== 文本处理工具 =========================
-class TextUtils:
-    """优化文本处理工具"""
-    
-    @staticmethod
-    def normalize_text(text: str) -> str:
-        """标准化文本"""
-        return re.sub(r'\s+', ' ', text.strip()) if text else ""
-    
-    @staticmethod
-    def is_valid_url(url: str) -> bool:
-        """验证URL有效性"""
-        if not url:
-            return False
-        try:
-            result = urlparse(url)
-            return all([result.scheme in ['http', 'https', 'rtmp', 'rtsp'], result.netloc])
-        except Exception:
-            return False
-    
-    @staticmethod
-    def parse_channel_line(line: str) -> Optional[Tuple[str, str]]:
-        """优化频道行解析"""
-        line = TextUtils.normalize_text(line)
-        if not line or line.startswith('#'):
-            return None
-        
-        # 支持多种分隔符格式
-        patterns = [
-            (r'^([^,]+?),\s*(https?://[^\s]+)$', '标准格式'),
-            (r'^([^|]+?)\|\s*(https?://[^\s]+)$', '竖线分隔'),
-            (r'#EXTINF:.*?,(.+?)\s*(?:https?://[^\s]+)?\s*(https?://[^\s]+)$', 'M3U格式'),
-        ]
-        
-        for pattern, _ in patterns:
-            match = re.search(pattern, line, re.IGNORECASE)
-            if match:
-                name = TextUtils.normalize_text(match.group(1))
-                url = TextUtils.normalize_text(match.group(2))
-                if name and url and TextUtils.is_valid_url(url):
-                    return name, url
-        
-        return None
-
-# ======================== 模板管理器 =========================
 class TemplateManager:
-    """优化模板管理器"""
+    """模板管理器"""
     
     @staticmethod
-    def load_template(file_path: str = Config.TEMPLATE_FILE) -> List[str]:
+    def load_template(file_path: str = None) -> List[str]:
         """加载模板文件"""
-        if not os.path.exists(file_path):
-            Console.print_warning(f"模板文件不存在: {file_path}")
-            return []
+        config = EnhancedConfig()
+        template_file = file_path or config.template_file
+        
+        if not os.path.exists(template_file):
+            return TemplateManager._create_default_template(template_file)
         
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(template_file, 'r', encoding='utf-8') as f:
                 lines = [line.strip() for line in f if line.strip()]
             Console.print_success(f"模板加载成功: {len(lines)}行")
             return lines
         except Exception as e:
             Console.print_error(f"模板加载失败: {str(e)}")
+            return []
+    
+    @staticmethod
+    def _create_default_template(file_path: str) -> List[str]:
+        """创建默认模板文件"""
+        try:
+            default_content = """# 默认IPTV模板文件 (demo.txt)
+# 格式：频道名称,URL 或 #EXTINF格式
+
+#genre#中央台
+CCTV-1综合,http://example.com/cctv1
+CCTV-2财经,http://example.com/cctv2
+CCTV-5体育,http://example.com/cctv5
+
+#genre#卫视台
+湖南卫视,http://example.com/hunan
+浙江卫视,http://example.com/zhejiang
+
+#genre#国际台
+BBC News,http://example.com/bbc
+CNN International,http://example.com/cnn"""
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(default_content)
+            
+            Console.print_info(f"已创建默认模板文件: {file_path}")
+            return [line.strip() for line in default_content.splitlines() if line.strip()]
+        except Exception as e:
+            Console.print_error(f"创建模板失败: {e}")
             return []
     
     @staticmethod
@@ -874,307 +605,629 @@ class TemplateManager:
         current_category = "默认分类"
         
         for line in lines:
+            if not line or not isinstance(line, str):
+                continue
+                
             line = line.strip()
             if not line or line.startswith('##'):
                 continue
                 
             if '#genre#' in line:
-                current_category = line.split(',')[0].strip()
+                current_category = line.split(',')[0].replace('#genre#', '').strip()
+                if not current_category:
+                    current_category = "未分类"
                 structure[current_category] = []
             elif current_category and line and not line.startswith('#'):
                 channel_name = line.split(',')[0].strip()
                 if channel_name:
+                    if current_category not in structure:
+                        structure[current_category] = []
                     structure[current_category].append(channel_name)
         
         return structure
 
-# ======================== 核心处理器 =========================
-class IPTVProcessor:
-    """优化IPTV处理器主类"""
+# ======================== 增强缓存管理器 =========================
+class EnhancedCacheManager:
+    """智能缓存管理器"""
     
     def __init__(self):
-        self.session = self._create_optimized_session()
-        self.cache_manager = CacheManager()
-        self.ffmpeg_detector = FFmpegDetector()
-        self.stats = ProcessingStats()
+        self.config = EnhancedConfig()
+        self.cache_dir = os.path.join(ROOT_DIR, ".iptv_cache")
+        os.makedirs(self.cache_dir, exist_ok=True)
+        self._lock = Lock()
+        self.disabled = False
+    
+    def _get_cache_file(self, key: str) -> str:
+        """获取缓存文件路径"""
+        safe_key = re.sub(r'[^\w\-_]', '_', key)
+        return os.path.join(self.cache_dir, f"{safe_key}.pkl")
+    
+    def get(self, key: str, max_age: int = None) -> Optional[Any]:
+        """获取缓存数据"""
+        if self.disabled:
+            return None
+            
+        cache_file = self._get_cache_file(key)
+        max_age = max_age or self.config.performance['cache_max_age']
+        
+        with self._lock:
+            if not os.path.exists(cache_file):
+                return None
+            
+            try:
+                file_age = time.time() - os.path.getmtime(cache_file)
+                if file_age > max_age:
+                    os.remove(cache_file)
+                    return None
+                
+                with open(cache_file, 'rb') as f:
+                    cache_data = pickle.load(f)
+                
+                # 验证数据完整性
+                if isinstance(cache_data, dict) and 'data' in cache_data and 'expire' in cache_data:
+                    if time.time() > cache_data['expire']:
+                        os.remove(cache_file)
+                        return None
+                    return cache_data['data']
+                else:
+                    os.remove(cache_file)
+                    return None
+                    
+            except Exception as e:
+                Console.print_warning(f"缓存读取失败 {key}: {e}")
+                try:
+                    os.remove(cache_file)
+                except:
+                    pass
+                return None
+    
+    def set(self, key: str, data: Any, expire: int = None) -> bool:
+        """设置缓存数据"""
+        if self.disabled:
+            return False
+            
+        cache_file = self._get_cache_file(key)
+        expire_time = time.time() + (expire or self.config.performance['cache_max_age'])
+        
+        with self._lock:
+            try:
+                cache_data = {
+                    'data': data,
+                    'expire': expire_time,
+                    'created': time.time()
+                }
+                
+                with open(cache_file, 'wb') as f:
+                    pickle.dump(cache_data, f)
+                
+                self._clean_old_cache()
+                return True
+            except Exception as e:
+                Console.print_warning(f"缓存写入失败 {key}: {e}")
+                return False
+    
+    def _clean_old_cache(self):
+        """LRU缓存清理"""
+        if self.disabled:
+            return
+            
+        try:
+            cache_files = [f for f in os.listdir(self.cache_dir) if f.endswith('.pkl')]
+            if len(cache_files) <= self.config.performance['max_cache_size']:
+                return
+            
+            # 按修改时间排序
+            file_stats = []
+            for f in cache_files:
+                try:
+                    file_path = os.path.join(self.cache_dir, f)
+                    file_stats.append((file_path, os.path.getmtime(file_path)))
+                except Exception:
+                    continue
+            
+            file_stats.sort(key=lambda x: x[1])
+            
+            # 保留最新的N个文件
+            keep_count = self.config.performance['max_cache_size']
+            for f, _ in file_stats[:-keep_count]:
+                try:
+                    os.remove(f)
+                except Exception:
+                    continue
+                    
+        except Exception as e:
+            Console.print_warning(f"缓存清理失败: {e}")
+
+# ======================== 资源监控器 =========================
+class ResourceMonitor:
+    """系统资源监控器"""
+    
+    def __init__(self, processor):
+        self.processor = processor
         self._stop_event = Event()
-        self._health_monitor_thread = None
-        
-        # FFmpeg可用性检查
-        if self.ffmpeg_detector.is_available():
-            Console.print_success("FFmpeg检测器已启用")
-        else:
-            Console.print_warning("FFmpeg未找到，使用基础测速模式")
+        self._thread = None
+        self.max_memory_mb = 1024
+        self._degraded = False
     
-    def _create_optimized_session(self) -> requests.Session:
-        """创建高度优化的会话"""
-        session = requests.Session()
-        
-        # 优化连接池配置
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=50,
-            pool_maxsize=100,
-            max_retries=2,
-            pool_block=False
-        )
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
-        
-        # 设置默认超时
-        def request_with_timeout(method, url, **kwargs):
-            kwargs.setdefault('timeout', Config.REQUEST_TIMEOUT)
-            return requests.Session.request(session, method, url, **kwargs)
-        
-        session.request = request_with_timeout
-        return session
-    
-    def _start_health_monitor(self):
-        """启动健康监控"""
+    def start(self):
+        """启动资源监控"""
         if not PSUTIL_AVAILABLE:
+            Console.print_warning("psutil不可用，跳过资源监控")
             return
             
         def monitor():
             while not self._stop_event.is_set():
                 try:
-                    self.stats.update_memory_peak()
-                    self._stop_event.wait(5)  # 每5秒检查一次
+                    self.processor.stats.update_memory_peak()
+                    
+                    # 内存使用监控
+                    mem_usage = psutil.Process().memory_info().rss / 1024 / 1024
+                    
+                    # 内存超限时自动降级
+                    if mem_usage > self.max_memory_mb and not self._degraded:
+                        self._reduce_workload()
+                        self._degraded = True
+                    
+                    time.sleep(5)
                 except Exception:
                     break
         
-        self._health_monitor_thread = threading.Thread(target=monitor, daemon=True)
-        self._health_monitor_thread.start()
+        self._thread = threading.Thread(target=monitor, daemon=True)
+        self._thread.start()
+        Console.print_info("资源监控已启动")
     
-    def _fetch_single_source_with_retry(self, url: str) -> Optional[str]:
-        """带重试的源抓取"""
-        for attempt in range(Config.MAX_RETRIES):
-            try:
-                # 先检查缓存
-                cached_content = self.cache_manager.get_cached_source(url)
-                if cached_content:
-                    self.stats.cache_hits += 1
-                    return cached_content
+    def stop(self):
+        """停止监控"""
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=1)
+        Console.print_info("资源监控已停止")
+    
+    def _reduce_workload(self):
+        """内存超限时自动降级处理"""
+        config = self.processor.config
+        
+        # 降低并发数
+        old_workers = config.performance['max_workers']['speed_test']
+        new_workers = max(1, old_workers // 2)
+        config.performance['max_workers']['speed_test'] = new_workers
+        
+        # 禁用缓存
+        if hasattr(self.processor, 'cache_manager'):
+            self.processor.cache_manager.disabled = True
+        
+        Console.print_warning(
+            f"内存使用超过 {self.max_memory_mb}MB，自动降级: "
+            f"并发数 {old_workers}->{new_workers}, 禁用缓存"
+        )
+
+# ======================== 增强网络管理器 =========================
+class EnhancedNetworkManager:
+    """增强的网络管理器"""
+    
+    def __init__(self):
+        if not REQUESTS_AVAILABLE:
+            raise ImportError("requests库未安装")
+            
+        self.config = EnhancedConfig()
+        self.session = self._create_session()
+        self.cache = {}
+        self._cache_lock = Lock()
+    
+    def _create_session(self) -> requests.Session:
+        """创建配置好的请求会话"""
+        session = requests.Session()
+        
+        # 重试策略
+        retry_strategy = Retry(
+            total=self.config.network['max_retries'],
+            backoff_factor=self.config.network['retry_delay'],
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["GET", "HEAD"]
+        )
+        
+        adapter = HTTPAdapter(
+            max_retries=retry_strategy,
+            pool_connections=50,
+            pool_maxsize=100
+        )
+        
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        
+        # 代理设置
+        if self.config.network['proxy']:
+            session.proxies = {
+                'http': self.config.network['proxy'],
+                'https': self.config.network['proxy']
+            }
+        
+        return session
+    
+    def fetch(self, url: str, use_cache: bool = True) -> Optional[str]:
+        """增强的抓取方法"""
+        if not TextUtils.is_valid_url(url):
+            Console.print_warning(f"无效的URL: {url}")
+            return None
+            
+        cache_key = f"source_{hashlib.md5(url.encode()).hexdigest()}"
+        
+        if use_cache:
+            with self._cache_lock:
+                if url in self.cache:
+                    return self.cache[url]
+        
+        try:
+            headers = {
+                'User-Agent': self.config.network['user_agent'],
+                'Accept': 'text/plain,text/html,*/*',
+                'Accept-Encoding': 'gzip, deflate'
+            }
+            
+            response = self.session.get(
+                url,
+                headers=headers,
+                timeout=self.config.network['timeout'],
+                stream=False
+            )
+            response.raise_for_status()
+            
+            content = response.text
+            if len(content) >= self.config.performance['min_content_length']:
+                if use_cache:
+                    with self._cache_lock:
+                        self.cache[url] = content
+                return content
+            else:
+                Console.print_warning(f"内容过短: {url} ({len(content)} bytes)")
                 
-                # 抓取新内容
-                content = self._fetch_single_source(url)
-                if content:
-                    # 缓存成功结果
-                    self.cache_manager.cache_source(url, content)
-                    return content
-                    
-            except Exception as e:
-                if attempt == Config.MAX_RETRIES - 1:
-                    logger.warning(f"源抓取失败 {url} after {Config.MAX_RETRIES} attempts: {e}")
-                    return None
-                
-                delay = Config.RETRY_DELAY * (2 ** attempt)  # 指数退避
-                logger.debug(f"第{attempt + 1}次重试 {url} in {delay}s")
-                time.sleep(delay)
-                self.stats.retry_attempts += 1
+        except requests.exceptions.RequestException as e:
+            Console.print_warning(f"网络请求失败 {url}: {str(e)}")
+        except Exception as e:
+            Console.print_warning(f"抓取异常 {url}: {str(e)}")
         
         return None
     
-    def _fetch_single_source(self, url: str) -> Optional[str]:
-        """优化单源抓取"""
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/plain,text/html,*/*',
-                'Accept-Encoding': 'gzip, deflate',
+    def test_speed(self, url: str) -> Dict[str, Any]:
+        """增强的测速方法"""
+        if not TextUtils.is_valid_url(url):
+            return {
+                'url': url,
+                'status': 'failed',
+                'delay': 0,
+                'speed_kbps': 0,
+                'valid': False,
+                'error': 'invalid_url'
             }
             
-            response = self.session.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
+        start_time = time.time()
+        metrics = {
+            'url': url,
+            'status': 'failed',
+            'delay': 0,
+            'speed_kbps': 0,
+            'valid': False,
+            'error': None
+        }
+        
+        try:
+            headers = {
+                'User-Agent': self.config.network['user_agent'],
+                'Range': 'bytes=0-102399'
+            }
             
-            content = response.text.strip()
-            return content if len(content) > Config.MIN_CONTENT_LENGTH else None
+            response = self.session.get(
+                url,
+                headers=headers,
+                timeout=self.config.network['speed_test_timeout'],
+                stream=True
+            )
             
+            if response.status_code in (200, 206):
+                content_length = 0
+                start_read = time.time()
+                
+                for chunk in response.iter_content(self.config.streaming['buffer_size']):
+                    content_length += len(chunk)
+                    if content_length >= 102400:  # 100KB
+                        break
+                    if time.time() - start_read > self.config.network['speed_test_timeout']:
+                        break
+                
+                total_time = time.time() - start_time
+                speed_kbps = (content_length / total_time) / 1024 if total_time > 0 else 0
+                
+                metrics.update({
+                    'status': 'success',
+                    'delay': total_time,
+                    'speed_kbps': speed_kbps,
+                    'valid': speed_kbps >= self.config.network['min_speed_kbps']
+                })
+            else:
+                metrics['error'] = f"HTTP {response.status_code}"
+                
+        except requests.exceptions.Timeout:
+            metrics['error'] = 'timeout'
+        except requests.exceptions.RequestException as e:
+            metrics['error'] = str(e)
         except Exception as e:
-            logger.debug(f"源抓取失败 {url}: {str(e)}")
-            return None
+            metrics['error'] = f"unexpected error: {str(e)}"
+        
+        return metrics
+
+# ======================== 主处理器 =========================
+class EnhancedIPTVProcessor:
+    """增强的IPTV处理器"""
     
-    def _parse_channels_streaming(self, sources: List[str]) -> Generator[ChannelInfo, None, None]:
-        """流式解析频道，减少内存占用"""
+    def __init__(self):
+        if not REQUESTS_AVAILABLE:
+            raise ImportError("requests 库未安装，请运行: pip install requests")
+        if not YAML_AVAILABLE:
+            raise ImportError("pyyaml 库未安装，请运行: pip install pyyaml")
+            
+        self.config = EnhancedConfig()
+        self.network = EnhancedNetworkManager()
+        self.cache_manager = EnhancedCacheManager()
+        self.resource_monitor = ResourceMonitor(self)
+        self.stats = ProcessingStats()
+        self._stop_event = Event()
+        self._setup_logging()
+    
+    def _setup_logging(self):
+        """设置日志系统"""
+        logger = logging.getLogger('IPTV_Processor')
+        logger.setLevel(logging.INFO)
+        
+        # 清除已有处理器
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+        
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        # 文件处理器
+        try:
+            log_file = self.config.get_output_path('log_file')
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        except Exception as e:
+            Console.print_warning(f"无法创建日志文件: {e}")
+        
+        # 控制台处理器
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+        self.logger = logger
+    
+    def _check_existing_files(self):
+        """检查是否已存在输出文件"""
+        files_to_check = [
+            self.config.get_output_path('output_txt'),
+            self.config.get_output_path('output_m3u')
+        ]
+        
+        existing_files = []
+        for file_path in files_to_check:
+            if os.path.exists(file_path):
+                existing_files.append(file_path)
+        
+        if existing_files:
+            Console.print_warning("以下文件已存在:")
+            for f in existing_files:
+                Console.print_warning(f"  - {f}")
+            
+            confirm = input("是否覆盖？(y/n): ").strip().lower()
+            if confirm != 'y':
+                Console.print_info("取消操作")
+                return False
+        
+        return True
+    
+    def _fetch_with_cache(self) -> List[str]:
+        """带缓存的多源抓取"""
+        Console.print_info("开始多源抓取（带缓存）...")
+        
+        cached_sources = []
+        fresh_sources = []
+        self.stats.total_sources = len(self.config.sources)
+        
+        for i, url in enumerate(self.config.sources, 1):
+            if self._stop_event.is_set():
+                break
+                
+            cache_key = f"source_{hashlib.md5(url.encode()).hexdigest()}"
+            cached_content = self.cache_manager.get(cache_key)
+            
+            if cached_content:
+                cached_sources.append(cached_content)
+                self.stats.cache_hits += 1
+                Console.print_success(f"[{i}/{len(self.config.sources)}] 缓存命中: {url}")
+            else:
+                content = self.network.fetch(url, use_cache=False)
+                if content:
+                    self.cache_manager.set(cache_key, content)
+                    fresh_sources.append(content)
+                    self.stats.valid_sources += 1
+                    Console.print_success(f"[{i}/{len(self.config.sources)}] 抓取成功: {url}")
+                else:
+                    Console.print_warning(f"[{i}/{len(self.config.sources)}] 抓取失败: {url}")
+            
+            Console.print_progress(i, len(self.config.sources), "源抓取进度")
+        
+        all_sources = cached_sources + fresh_sources
+        Console.print_info(f"源抓取完成: {len(all_sources)}/{len(self.config.sources)} (缓存: {len(cached_sources)})")
+        return all_sources
+    
+    def _parse_channels_enhanced(self, sources: List[str]) -> Generator[ChannelInfo, None, None]:
+        """增强的频道解析器"""
         seen_urls = set()
+        channel_count = 0
         
         for i, content in enumerate(sources, 1):
             if self._stop_event.is_set():
                 break
                 
+            if not content or not isinstance(content, str):
+                continue
+                
             channels_from_source = 0
-            for line in content.splitlines():
+            lines = content.splitlines()
+            j = 0
+            
+            while j < len(lines):
                 if self._stop_event.is_set():
                     break
                     
+                line = lines[j].strip()
+                if not line:
+                    j += 1
+                    continue
+                
+                # 处理M3U格式
+                if line.startswith('#EXTINF'):
+                    if j + 1 < len(lines):
+                        extinf_line = line
+                        url_line = lines[j + 1].strip()
+                        
+                        if url_line and not url_line.startswith('#') and TextUtils.is_valid_url(url_line):
+                            if url_line not in seen_urls:
+                                seen_urls.add(url_line)
+                                
+                                try:
+                                    # 解析EXTINF
+                                    name_match = re.search(r'#EXTINF:.*?,(.+)', extinf_line)
+                                    if name_match:
+                                        name = name_match.group(1).strip()
+                                        channel = ChannelInfo(name=name, url=url_line, source=f"Source_{i}")
+                                        
+                                        # 解析EXTINF属性
+                                        attrs = re.findall(r'([a-z\-]+)="([^"]+)"', extinf_line)
+                                        for key, value in attrs:
+                                            if key == 'group-title':
+                                                channel.group = value
+                                            elif key == 'tvg-id':
+                                                channel.tvg_id = value
+                                            elif key == 'tvg-logo':
+                                                channel.tvg_logo = value
+                                        
+                                        width, height, _ = ResolutionDetector.detect_from_name(name)
+                                        channel.width = width
+                                        channel.height = height
+                                        
+                                        channels_from_source += 1
+                                        channel_count += 1
+                                        yield channel
+                                except Exception as e:
+                                    Console.print_warning(f"解析M3U频道失败: {e}")
+                            
+                            j += 2  # 跳过URL行
+                            continue
+                
+                # 处理标准格式
                 result = TextUtils.parse_channel_line(line)
                 if result:
                     name, url = result
-                    
-                    # URL去重
-                    if url in seen_urls:
-                        continue
-                    seen_urls.add(url)
-                    
-                    # 创建频道对象
-                    channel = ChannelInfo(name=name, url=url, source=f"Source_{i}")
-                    
-                    # 智能分辨率检测
-                    width, height, _ = ResolutionDetector.detect_from_name(name)
-                    channel.width = width
-                    channel.height = height
-                    
-                    channels_from_source += 1
-                    yield channel
-            
-            Console.print_info(f"源{i}: 解析{channels_from_source}个频道")
-    
-    def _advanced_ffmpeg_test(self, channel: ChannelInfo) -> ChannelInfo:
-        """使用FFmpeg进行高级流媒体测试"""
-        self.stats.ffmpeg_tests += 1
-        
-        if not self.ffmpeg_detector.is_available():
-            return channel
-        
-        try:
-            # 第一步：快速流媒体分析
-            Console.print_ffmpeg(f"分析流媒体: {channel.name}")
-            probe_data = self.ffmpeg_detector.analyze_stream(channel.url)
-            
-            if probe_data:
-                # 解析流媒体质量信息
-                stream_quality = self.ffmpeg_detector.parse_stream_quality(probe_data)
-                channel.stream_quality = stream_quality
-                channel.ffmpeg_supported = True
-                
-                # 验证流媒体质量
-                if (stream_quality.has_video and 
-                    stream_quality.video_bitrate >= Config.MIN_VIDEO_BITRATE and
-                    stream_quality.total_bitrate >= Config.MIN_VIDEO_BITRATE + Config.MIN_AUDIO_BITRATE):
-                    
-                    # 第二步：快速连接测试
-                    quick_test = self.ffmpeg_detector.quick_test_stream(channel.url, duration=3)
-                    if quick_test and quick_test.get('success'):
-                        channel.status = ChannelStatus.VALID
-                        channel.speed = quick_test.get('speed', 1.0)
-                        self.stats.ffmpeg_success += 1
+                    if url not in seen_urls:
+                        seen_urls.add(url)
+                        channel = ChannelInfo(name=name, url=url, source=f"Source_{i}")
                         
-                        Console.print_success(
-                            f"{channel.name:<25} | "
-                            f"FFmpeg✅ | "
-                            f"码率:{channel.bitrate_str:>8} | "
-                            f"编码:{channel.codec_str:>10} | "
-                            f"分辨率:{channel.resolution_str:>9}"
-                        )
-                    else:
-                        channel.status = ChannelStatus.FORMAT_ERROR
-                        self.stats.network_errors += 1  # 修复：添加错误统计
-                else:
-                    channel.status = ChannelStatus.CODEC_ERROR
-                    self.stats.network_errors += 1  # 修复：添加错误统计
-            else:
-                channel.status = ChannelStatus.UNREACHABLE
-                self.stats.network_errors += 1  # 修复：添加错误统计
+                        width, height, _ = ResolutionDetector.detect_from_name(name)
+                        channel.width = width
+                        channel.height = height
+                        
+                        channels_from_source += 1
+                        channel_count += 1
+                        yield channel
                 
-        except Exception as e:
-            logger.debug(f"FFmpeg测试异常 {channel.url}: {e}")
-            channel.status = ChannelStatus.UNREACHABLE
-            self.stats.network_errors += 1  # 修复：添加错误统计
+                j += 1
+            
+            if channels_from_source > 0:
+                Console.print_info(f"源{i}: 解析{channels_from_source}个频道")
         
-        return channel
+        self.stats.total_channels = channel_count
+        Console.print_success(f"频道解析完成: {channel_count}个频道")
     
-    def _basic_http_test(self, channel: ChannelInfo) -> ChannelInfo:
-        """基础HTTP测速 - 修复网络错误统计"""
-        try:
-            start_time = time.time()
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Range': 'bytes=0-102399'  # 100KB
+    def _speed_test_channels(self, channels: List[ChannelInfo]) -> List[ChannelInfo]:
+        """并发测速频道"""
+        Console.print_info("开始频道测速...")
+        
+        valid_channels = []
+        
+        with ThreadPoolExecutor(
+            max_workers=self.config.performance['max_workers']['speed_test']
+        ) as executor:
+            futures = {
+                executor.submit(self._test_single_channel, channel): channel 
+                for channel in channels
             }
             
-            response = self.session.get(
-                channel.url,
-                headers=headers,
-                timeout=Config.SPEED_TEST_TIMEOUT,
-                stream=True
-            )
-            
-            if response.status_code in [200, 206]:
-                content_length = 0
-                start_read = time.time()
-                
-                for chunk in response.iter_content(8192):
-                    if self._stop_event.is_set():
-                        break
-                    content_length += len(chunk)
-                    if content_length >= 102400:  # 100KB
-                        break
-                    if time.time() - start_read > Config.SPEED_TEST_TIMEOUT:
-                        break
-                
-                total_time = time.time() - start_time
-                channel.delay = total_time
-                channel.speed = content_length / total_time / 1024 if total_time > 0 else 0
-                
-                if channel.speed >= Config.MIN_SPEED_KBPS and total_time <= Config.SPEED_TEST_TIMEOUT:
-                    channel.status = ChannelStatus.VALID
-                    Console.print_success(
-                        f"{channel.name:<25} | "
-                        f"HTTP✅ | "
-                        f"延迟:{channel.delay:5.2f}s | "
-                        f"速度:{channel.speed:6.1f}KB/s"
-                    )
-                else:
-                    channel.status = ChannelStatus.LOW_SPEED
-                    self.stats.network_errors += 1  # 修复：添加错误统计
-            else:
-                channel.status = ChannelStatus.UNREACHABLE
-                self.stats.network_errors += 1  # 修复：添加错误统计
-                
-        except requests.exceptions.Timeout:
-            channel.status = ChannelStatus.TIMEOUT
-            self.stats.network_errors += 1  # 修复：添加错误统计
-        except requests.exceptions.ConnectionError:
-            channel.status = ChannelStatus.UNREACHABLE
-            self.stats.network_errors += 1  # 修复：添加错误统计
-        except Exception:
-            channel.status = ChannelStatus.UNREACHABLE
-            self.stats.network_errors += 1  # 修复：添加错误统计
+            for i, future in enumerate(as_completed(futures), 1):
+                if self._stop_event.is_set():
+                    break
+                    
+                channel = futures[future]
+                try:
+                    tested_channel = future.result(timeout=self.config.network['speed_test_timeout'] + 5)
+                    if tested_channel.is_valid:
+                        valid_channels.append(tested_channel)
+                    
+                    if i % 5 == 0 or i == len(channels) or i <= 10:
+                        Console.print_progress(i, len(channels), "测速进度")
+                        
+                except Exception as e:
+                    Console.print_warning(f"测速失败 {channel.name}: {e}")
         
+        self.stats.speed_tested = len(valid_channels)
+        Console.print_success(f"测速完成: {len(valid_channels)}/{len(channels)}个有效")
+        return valid_channels
+    
+    def _test_single_channel(self, channel: ChannelInfo) -> ChannelInfo:
+        """测试单个频道"""
+        metrics = self.network.test_speed(channel.url)
+        
+        channel.delay = metrics['delay']
+        channel.speed = metrics['speed_kbps']
         channel.last_checked = time.time()
+        
+        if metrics['valid']:
+            channel.status = ChannelStatus.VALID
+            if channel.speed > 1000:  # 只显示高速频道
+                Console.print_success(
+                    f"{channel.name:<25} | "
+                    f"{channel.stream_quality.stream_type.value.upper():<6} | "
+                    f"延迟:{channel.delay:5.2f}s | "
+                    f"速度:{channel.speed:6.1f}KB/s"
+                )
+        else:
+            channel.status = ChannelStatus.LOW_SPEED
+            self.stats.network_errors += 1
+        
         return channel
     
-    def _hybrid_speed_test(self, channel: ChannelInfo) -> ChannelInfo:
-        """混合测速策略：FFmpeg优先，HTTP备用"""
-        # 首先尝试FFmpeg检测
-        ffmpeg_result = self._advanced_ffmpeg_test(channel)
-        
-        if ffmpeg_result.is_valid:
-            return ffmpeg_result
-        
-        # FFmpeg失败时使用HTTP测速
-        return self._basic_http_test(channel)
-    
     def _fuzzy_template_matching(self, channels: List[ChannelInfo]) -> List[ChannelInfo]:
-        """模糊模板匹配 - 优化进度显示"""
+        """模板匹配"""
         Console.print_info("开始模板匹配...")
         
-        template_lines = TemplateManager.load_template()
+        template_lines = TemplateManager.load_template(self.config.template_file)
         if not template_lines:
             Console.print_warning("无模板文件，返回所有有效频道")
-            return channels  # 修复：无模板时返回所有频道
+            return channels
         
         template_structure = TemplateManager.parse_template_structure(template_lines)
         if not template_structure:
             Console.print_warning("模板解析为空，返回所有有效频道")
-            return channels  # 修复：空模板时返回所有频道
+            return channels
         
-        # 获取所有模板频道名称
         template_names = set()
         for category_channels in template_structure.values():
             template_names.update([name.lower().strip() for name in category_channels if name.strip()])
         
         Console.print_info(f"模板频道数: {len(template_names)}")
         
-        # 精确匹配
         matched_channels = []
         exact_matches = 0
         
@@ -1184,19 +1237,19 @@ class IPTVProcessor:
                 matched_channels.append(channel)
                 exact_matches += 1
             
-            # 优化：显示匹配进度
             if i % 50 == 0 or i == len(channels):
                 Console.print_progress(i, len(channels), "模板匹配进度")
         
         Console.print_success(f"精确匹配: {exact_matches}/{len(channels)}")
         
-        # 如果没有精确匹配，尝试模糊匹配
+        # 模糊匹配
         if exact_matches == 0 and FUZZYWUZZY_AVAILABLE:
             Console.print_info("尝试模糊匹配...")
             fuzzy_matches = 0
+            fuzzy_threshold = 80
             
             for i, channel in enumerate(channels, 1):
-                if channel in matched_channels:  # 跳过已匹配的
+                if channel in matched_channels:
                     continue
                     
                 channel_name_lower = channel.name.lower().strip()
@@ -1204,15 +1257,13 @@ class IPTVProcessor:
                 
                 for template_name in template_names:
                     score = fuzz.token_sort_ratio(channel_name_lower, template_name)
-                    if score > Config.FUZZY_MATCH_THRESHOLD and score > best_score:
+                    if score > fuzzy_threshold and score > best_score:
                         best_score = score
                 
-                if best_score >= Config.FUZZY_MATCH_THRESHOLD:
+                if best_score >= fuzzy_threshold:
                     matched_channels.append(channel)
                     fuzzy_matches += 1
-                    logger.debug(f"模糊匹配: {channel.name} -> {best_score}分")
                 
-                # 优化：显示模糊匹配进度
                 if i % 20 == 0 or i == len(channels):
                     Console.print_progress(i, len(channels), "模糊匹配进度")
             
@@ -1224,425 +1275,315 @@ class IPTVProcessor:
         Console.print_success(f"模板匹配完成: {len(matched_channels)}/{len(channels)}")
         return matched_channels
     
-    def health_check(self) -> Dict[str, Any]:
-        """系统健康检查"""
-        health_info = {
-            "version": Config.VERSION,
-            "running_time": self.stats.elapsed_time,
-            "active_threads": threading.active_count(),
-            "memory_peak_mb": self.stats.memory_peak,
-            "network_errors": self.stats.network_errors,
-            "cache_hits": self.stats.cache_hits,
-            "retry_attempts": self.stats.retry_attempts,
-            "ffmpeg_tests": self.stats.ffmpeg_tests,
-            "ffmpeg_success": self.stats.ffmpeg_success,
-            "ffmpeg_available": self.ffmpeg_detector.is_available(),
-        }
+    def _generate_txt_content(self, channels: List[ChannelInfo]) -> str:
+        """生成TXT格式内容"""
+        template_lines = TemplateManager.load_template(self.config.template_file)
         
-        if PSUTIL_AVAILABLE:
-            try:
-                process = psutil.Process()
-                health_info.update({
-                    "memory_current_mb": process.memory_info().rss / 1024 / 1024,
-                    "cpu_percent": process.cpu_percent(),
-                    "disk_usage": psutil.disk_usage('.')._asdict(),
-                })
-            except Exception:
-                pass
-        
-        return health_info
-    
-    def _generate_quality_report(self, channels: List[ChannelInfo]) -> bool:
-        """生成质量报告"""
-        try:
-            report = {
-                "generated_at": datetime.now().isoformat(),
-                "total_channels": len(channels),
-                "ffmpeg_tested": sum(1 for c in channels if c.ffmpeg_supported),
-                "quality_stats": {
-                    "uhd_8k": sum(1 for c in channels if c.quality == ResolutionQuality.UHD_8K),
-                    "uhd_4k": sum(1 for c in channels if c.quality == ResolutionQuality.UHD_4K),
-                    "fhd_1080p": sum(1 for c in channels if c.quality == ResolutionQuality.FHD_1080P),
-                    "hd_720p": sum(1 for c in channels if c.quality == ResolutionQuality.HD_720P),
-                    "sd_480p": sum(1 for c in channels if c.quality == ResolutionQuality.SD_480P),
-                },
-                "channels": []
-            }
-            
+        if not template_lines:
+            # 按组分类
+            groups = {}
             for channel in channels:
-                channel_info = {
-                    "name": channel.name,
-                    "url": channel.url,
-                    "resolution": channel.resolution_str,
-                    "bitrate": channel.bitrate_str,
-                    "codec": channel.codec_str,
-                    "speed": channel.speed,
-                    "delay": channel.delay,
-                    "ffmpeg_supported": channel.ffmpeg_supported,
-                    "quality": channel.quality.name,
-                    "stream_type": channel.stream_quality.stream_type.value,
-                    "has_video": channel.stream_quality.has_video,
-                    "has_audio": channel.stream_quality.has_audio,
-                    "is_live": channel.stream_quality.is_live,
+                group = channel.group or "默认分类"
+                if group not in groups:
+                    groups[group] = []
+                groups[group].append(channel)
+        else:
+            groups = TemplateManager.parse_template_structure(template_lines)
+            # 按模板结构组织频道
+            organized_channels = {}
+            for category, names in groups.items():
+                organized_channels[category] = [
+                    c for c in channels 
+                    if c.name.lower() in [n.lower() for n in names]
+                ]
+            groups = organized_channels
+        
+        lines = [
+            f"# IPTV频道列表 - {self.config.app_name} v{self.config.version}",
+            f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"# 总频道数: {len(channels)}",
+            f"# 协议支持: {', '.join(self.config.streaming['supported_protocols'])}",
+            ""
+        ]
+        
+        for category, category_channels in groups.items():
+            if category_channels:
+                lines.append(f"{category},#genre#")
+                
+                # 按速度排序
+                category_channels.sort(key=lambda x: x.speed, reverse=True)
+                
+                for channel in category_channels:
+                    lines.append(f"{channel.name},{channel.url}")
+                lines.append("")
+        
+        return "\n".join(lines)
+    
+    def _generate_m3u_content(self, channels: List[ChannelInfo]) -> str:
+        """生成M3U格式内容"""
+        lines = ["#EXTM3U"]
+        
+        # 按组分类
+        groups = {}
+        for channel in channels:
+            group = channel.group or "默认分类"
+            if group not in groups:
+                groups[group] = []
+            groups[group].append(channel)
+        
+        for group, group_channels in groups.items():
+            group_channels.sort(key=lambda x: x.speed, reverse=True)
+            
+            for channel in group_channels:
+                extinf_line = f'#EXTINF:-1 tvg-id="{channel.tvg_id}" tvg-name="{channel.name}"'
+                extinf_line += f' tvg-logo="{channel.tvg_logo}" group-title="{group}"'
+                extinf_line += f',{channel.name}'
+                
+                lines.append(extinf_line)
+                lines.append(channel.url)
+        
+        return "\n".join(lines)
+    
+    def _generate_quality_report(self, channels: List[ChannelInfo]) -> Dict[str, Any]:
+        """生成质量报告数据"""
+        return {
+            'metadata': {
+                'app': self.config.app_name,
+                'version': self.config.version,
+                'generated_at': datetime.now().isoformat(),
+                'processing_stats': {
+                    'total_sources': self.stats.total_sources,
+                    'valid_sources': self.stats.valid_sources,
+                    'total_channels': self.stats.total_channels,
+                    'valid_channels': self.stats.speed_tested,
+                    'final_channels': self.stats.final_channels,
+                    'elapsed_time': self.stats.elapsed_time,
+                    'memory_peak_mb': self.stats.memory_peak,
+                    'network_errors': self.stats.network_errors,
+                    'cache_hits': self.stats.cache_hits
                 }
-                report["channels"].append(channel_info)
+            },
+            'channels': [channel.to_dict() for channel in channels]
+        }
+    
+    def _generate_outputs(self, channels: List[ChannelInfo]) -> bool:
+        """在根目录生成所有输出文件"""
+        try:
+            # 生成TXT文件
+            txt_file = self.config.get_output_path('output_txt')
+            with open(txt_file, 'w', encoding='utf-8') as f:
+                f.write(self._generate_txt_content(channels))
             
-            with open(Config.OUTPUT_QUALITY_REPORT, 'w', encoding='utf-8') as f:
-                json.dump(report, f, ensure_ascii=False, indent=2)
+            # 生成M3U文件
+            m3u_file = self.config.get_output_path('output_m3u')
+            with open(m3u_file, 'w', encoding='utf-8') as f:
+                f.write(self._generate_m3u_content(channels))
             
-            Console.print_success(f"质量报告生成成功: {Config.OUTPUT_QUALITY_REPORT}")
+            # 生成质量报告
+            report_file = self.config.get_output_path('quality_report')
+            with open(report_file, 'w', encoding='utf-8') as f:
+                json.dump(self._generate_quality_report(channels), f, ensure_ascii=False, indent=2)
+            
+            Console.print_success("文件已生成到根目录:")
+            Console.print_success(f"频道列表: {txt_file}")
+            Console.print_success(f"M3U文件: {m3u_file}")
+            Console.print_success(f"质量报告: {report_file}")
             return True
-            
         except Exception as e:
-            Console.print_error(f"质量报告生成失败: {str(e)}")
+            Console.print_error(f"文件生成失败: {e}")
             return False
     
+    def _print_final_stats(self):
+        """打印最终统计"""
+        Console.print_success("🎉 处理完成！")
+        Console.print_info(f"⏱️ 处理耗时: {self.stats.elapsed_time:.2f}秒")
+        Console.print_info(f"💾 内存峰值: {self.stats.memory_peak:.1f}MB")
+        Console.print_info(f"🌐 有效源: {self.stats.valid_sources}/{self.stats.total_sources}")
+        Console.print_info(f"📺 总频道: {self.stats.total_channels}")
+        Console.print_info(f"⚡ 测速有效: {self.stats.speed_tested}")
+        Console.print_info(f"🔍 模板匹配: {self.stats.template_matched}")
+        Console.print_info(f"📤 最终输出: {self.stats.final_channels}")
+        Console.print_info(f"❌ 网络错误: {self.stats.network_errors}")
+        Console.print_info(f"💿 缓存命中: {self.stats.cache_hits}")
+    
     def process(self) -> bool:
-        """优化主处理流程"""
-        Console.print_success(f"{Config.APP_NAME} v{Config.VERSION} 开始处理")
+        """主处理流程"""
+        Console.print_success(f"🚀 {self.config.app_name} v{self.config.version} 开始处理")
         
         try:
-            # 0. 启动健康监控
-            self._start_health_monitor()
+            # 检查文件覆盖
+            if not self._check_existing_files():
+                return False
             
-            # 1. 系统初始化
-            self._initialize_system()
+            self.resource_monitor.start()
             
-            # 2. 多源抓取
-            sources_content = self._fetch_multiple_sources()
+            # 1. 带缓存的多源抓取
+            sources_content = self._fetch_with_cache()
             if not sources_content:
-                Console.print_error("无有效源数据")
+                Console.print_error("❌ 无有效源数据")
                 return False
             
-            # 3. 智能解析（流式）
-            all_channels = list(self._parse_channels_streaming(sources_content))
+            # 2. 流式解析频道
+            all_channels = list(self._parse_channels_enhanced(sources_content))
             if not all_channels:
-                Console.print_error("无有效频道数据")
+                Console.print_error("❌ 无有效频道数据")
                 return False
             
-            self.stats.total_channels = len(all_channels)
-            Console.print_success(f"频道解析完成: {len(all_channels)}个频道")
-            
-            # 4. 智能测速（FFmpeg + HTTP混合）
+            # 3. 测速验证
             valid_channels = self._speed_test_channels(all_channels)
             if not valid_channels:
-                Console.print_error("无有效频道通过测速")
+                Console.print_error("❌ 无有效频道通过测速")
                 return False
             
-            # 5. 模板匹配
+            # 4. 模板匹配
             final_channels = self._fuzzy_template_matching(valid_channels)
             if not final_channels:
-                Console.print_error("无频道匹配模板")
-                return False
+                Console.print_warning("⚠️ 无频道匹配模板，使用所有有效频道")
+                final_channels = valid_channels
             
-            # 6. 生成纯净输出
+            # 5. 生成输出
             success = self._generate_outputs(final_channels)
             
-            # 7. 生成质量报告
-            self._generate_quality_report(final_channels)
-            
             if success:
+                self.stats.final_channels = len(final_channels)
                 self._print_final_stats()
             
             return success
             
         except KeyboardInterrupt:
-            Console.print_warning("用户中断处理")
-            self._stop_event.set()
+            Console.print_warning("⏹️ 用户中断处理")
             return False
         except Exception as e:
-            Console.print_error(f"处理异常: {str(e)}")
-            logger.exception("详细异常信息")
+            Console.print_error(f"💥 处理异常: {str(e)}")
             return False
         finally:
             self.stats.end_time = time.time()
             self._stop_event.set()
-            if hasattr(self, 'session'):
-                self.session.close()
-            # 清理资源
-            self.cache_manager.clear_expired_cache()
-            Console.print_info("资源清理完成")
-    
-    def _initialize_system(self):
-        """系统初始化"""
-        Console.print_info("系统初始化中...")
-        Console.print_info(f"Python版本: {platform.python_version()}")
-        Console.print_info(f"平台: {platform.system()} {platform.release()}")
-        Console.print_info(f"CPU核心: {os.cpu_count()}")
-        Console.print_info(f"缓存目录: {Config.CACHE_DIR}")
-        Console.print_info(f"FFmpeg可用: {self.ffmpeg_detector.is_available()}")
-        
-        # 清理过期缓存
-        self.cache_manager.clear_expired_cache()
-    
-    def _fetch_multiple_sources(self) -> List[str]:
-        """优化多源并发抓取"""
-        Console.print_info("开始多源抓取...")
-        
-        sources = Config.SOURCE_URLS
-        sources_content = []
-        self.stats.total_sources = len(sources)
-        
-        with ThreadPoolExecutor(max_workers=Config.MAX_WORKERS_SOURCE) as executor:
-            futures = {executor.submit(self._fetch_single_source_with_retry, url): url for url in sources}
-            
-            for i, future in enumerate(as_completed(futures), 1):
-                url = futures[future]
-                try:
-                    content = future.result(timeout=30)
-                    if content:
-                        sources_content.append(content)
-                        self.stats.valid_sources += 1
-                        Console.print_success(f"[{i}/{len(sources)}] 抓取成功: {url}")
-                    else:
-                        Console.print_warning(f"[{i}/{len(sources)}] 抓取失败: {url}")
-                except Exception as e:
-                    Console.print_warning(f"[{i}/{len(sources)}] 抓取异常: {url} - {str(e)}")
-                
-                Console.print_progress(i, len(sources), "源抓取进度")
-        
-        Console.print_info(f"源抓取完成: {len(sources_content)}/{len(sources)}")
-        Console.print_info(f"缓存命中: {self.stats.cache_hits}")
-        return sources_content
-    
-    def _speed_test_channels(self, channels: List[ChannelInfo]) -> List[ChannelInfo]:
-        """优化智能测速 - 修复进度显示"""
-        Console.print_info("开始频道测速...")
-        
-        valid_channels = []
-        
-        with ThreadPoolExecutor(max_workers=Config.MAX_WORKERS_SPEED_TEST) as executor:
-            futures = {executor.submit(self._hybrid_speed_test, channel): channel 
-                      for channel in channels}
-            
-            for i, future in enumerate(as_completed(futures), 1):
-                if self._stop_event.is_set():
-                    break
-                    
-                channel = futures[future]
-                try:
-                    tested_channel = future.result(timeout=Config.FFMPEG_TIMEOUT + 5)
-                    if tested_channel.is_valid:
-                        valid_channels.append(tested_channel)
-                    
-                    # 优化进度显示频率
-                    if i % 5 == 0 or i == len(channels) or i <= 10:
-                        Console.print_progress(i, len(channels), "测速进度")
-                        
-                except Exception as e:
-                    logger.warning(f"测速异常 {channel.name}: {str(e)}")
-        
-        self.stats.speed_tested = len(valid_channels)
-        Console.print_success(f"测速完成: {len(valid_channels)}/{len(channels)}个有效")
-        Console.print_info(f"FFmpeg成功检测: {self.stats.ffmpeg_success}/{self.stats.ffmpeg_tests}")
-        return valid_channels
-    
-    def _generate_outputs(self, channels: List[ChannelInfo]) -> bool:
-        """生成纯净输出"""
-        Console.print_info("生成输出文件...")
-        
-        try:
-            # 生成TXT
-            txt_success = self._generate_txt_file(channels)
-            # 生成M3U
-            m3u_success = self._generate_m3u_file(channels)
-            
-            self.stats.final_channels = len(channels)
-            return txt_success and m3u_success
-            
-        except Exception as e:
-            Console.print_error(f"生成输出失败: {str(e)}")
-            return False
-    
-    def _generate_txt_file(self, channels: List[ChannelInfo]) -> bool:
-        """生成纯净TXT文件"""
-        try:
-            content = self._generate_txt_content(channels)
-            with open(Config.OUTPUT_TXT, 'w', encoding='utf-8') as f:
-                f.write(content)
-            Console.print_success(f"TXT文件生成成功: {Config.OUTPUT_TXT}")
-            return True
-        except Exception as e:
-            Console.print_error(f"TXT文件生成失败: {str(e)}")
-            return False
-    
-    def _generate_m3u_file(self, channels: List[ChannelInfo]) -> bool:
-        """生成纯净M3U文件"""
-        try:
-            content = self._generate_m3u_content(channels)
-            with open(Config.OUTPUT_M3U, 'w', encoding='utf-8') as f:
-                f.write(content)
-            Console.print_success(f"M3U文件生成成功: {Config.OUTPUT_M3U}")
-            return True
-        except Exception as e:
-            Console.print_error(f"M3U文件生成失败: {str(e)}")
-            return False
-    
-    def _generate_txt_content(self, channels: List[ChannelInfo]) -> str:
-        """生成纯净TXT内容"""
-        template = TemplateManager.load_template()
-        structure = TemplateManager.parse_template_structure(template) if template else {"默认分类": [c.name for c in channels]}
-        
-        lines = [
-            f"# IPTV频道列表 - {Config.APP_NAME} v{Config.VERSION}",
-            f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"# 总频道数: {len(channels)}",
-            f"# 纯净输出 - 无速度/分辨率标识",
-            ""
-        ]
-        
-        for category, names in structure.items():
-            lines.append(f"{category},#genre#")
-            
-            category_channels = [c for c in channels if c.name.lower() in [n.lower() for n in names]]
-            # 按速度排序
-            category_channels.sort(key=lambda x: x.speed, reverse=True)
-            
-            for channel in category_channels:
-                lines.append(f"{channel.name},{channel.url}")
-            lines.append("")
-        
-        return "\n".join(lines)
-    
-    def _generate_m3u_content(self, channels: List[ChannelInfo]) -> str:
-        """生成纯净M3U内容"""
-        template = TemplateManager.load_template()
-        structure = TemplateManager.parse_template_structure(template) if template else {"默认分类": [c.name for c in channels]}
-        
-        lines = ["#EXTM3U"]
-        
-        for category, names in structure.items():
-            category_channels = [c for c in channels if c.name.lower() in [n.lower() for n in names]]
-            # 按速度排序
-            category_channels.sort(key=lambda x: x.speed, reverse=True)
-            
-            for channel in category_channels:
-                lines.extend([
-                    f'#EXTINF:-1 group-title="{category}",{channel.name}',
-                    channel.url
-                ])
-        
-        return "\n".join(lines)
-    
-    def _print_final_stats(self):
-        """打印最终统计"""
-        Console.print_success("处理完成！")
-        Console.print_info(f"处理耗时: {self.stats.elapsed_time:.2f}秒")
-        Console.print_info(f"有效源: {self.stats.valid_sources}/{self.stats.total_sources}")
-        Console.print_info(f"总频道: {self.stats.total_channels}")
-        Console.print_info(f"测速有效: {self.stats.speed_tested}")
-        Console.print_info(f"模板匹配: {self.stats.template_matched}")
-        Console.print_info(f"最终输出: {self.stats.final_channels}")
-        Console.print_info(f"缓存命中: {self.stats.cache_hits}")
-        Console.print_info(f"重试次数: {self.stats.retry_attempts}")
-        Console.print_info(f"FFmpeg测试: {self.stats.ffmpeg_tests}")
-        Console.print_info(f"FFmpeg成功: {self.stats.ffmpeg_success}")
-        
-        if self.stats.memory_peak > 0:
-            Console.print_info(f"内存峰值: {self.stats.memory_peak:.1f}MB")
-        
-        if self.stats.network_errors > 0:
-            Console.print_warning(f"网络错误: {self.stats.network_errors}")
-        
-        # 打印健康状态
-        health = self.health_check()
-        Console.print_info("系统健康状态:")
-        for key, value in health.items():
-            if key not in ['running_time', 'memory_peak_mb']:  # 这些已经显示过了
-                Console.print_info(f"  {key}: {value}")
+            self.resource_monitor.stop()
+            if hasattr(self, 'network') and hasattr(self.network, 'session'):
+                self.network.session.close()
 
-# ======================== 依赖检查 =========================
-def check_dependencies():
-    """检查依赖"""
-    print("正在检查依赖...")
+# ======================== 完整性验证 =========================
+def validate_integrity():
+    """验证代码完整性"""
+    tests = [
+        ("配置系统", lambda: EnhancedConfig().network['timeout'] == 15),
+        ("缓存管理", lambda: EnhancedCacheManager().set('test', {'data': 1})),
+        ("网络管理", lambda: hasattr(EnhancedNetworkManager(), 'test_speed')),
+        ("文本工具", lambda: TextUtils.parse_channel_line("CCTV-1,http://test.com") is not None),
+        ("分辨率检测", lambda: ResolutionDetector.detect_from_name("CCTV-4K")[0] == 3840),
+        ("模板管理", lambda: len(TemplateManager.load_template()) > 0),
+    ]
     
-    dependencies = {
-        'requests': '网络请求',
-        'psutil': '系统监控',
-        'fuzzywuzzy': '模糊匹配',
-        'colorama': 'Windows颜色支持',
-    }
-    
-    missing = []
-    for package, description in dependencies.items():
+    results = []
+    for name, test in tests:
         try:
-            if package == 'fuzzywuzzy':
-                __import__('fuzzywuzzy.fuzz')
-            else:
-                __import__(package)
-            print(f"✅ {package} - {description}")
-        except ImportError:
-            print(f"❌ {package} - {description}")
-            missing.append(package)
+            success = test()
+            results.append((name, success))
+        except Exception as e:
+            results.append((name, False, str(e)))
     
-    # 检查FFmpeg
-    detector = FFmpegDetector()
-    if detector.is_available():
-        print("✅ FFmpeg - 流媒体分析")
-    else:
-        print("❌ FFmpeg - 流媒体分析 (未找到)")
-        missing.append('ffmpeg')
+    print("\n" + "="*50)
+    print("完整性验证结果:")
+    print("="*50)
     
-    if missing:
-        print(f"\n缺少依赖: {', '.join(missing)}")
-        print("安装命令: pip install " + " ".join([p for p in missing if p != 'ffmpeg']))
-        if 'ffmpeg' in missing:
-            print("FFmpeg 需要手动安装:")
-            print("  Ubuntu: sudo apt install ffmpeg")
-            print("  macOS: brew install ffmpeg")
-            print("  Windows: 下载 https://ffmpeg.org/download.html")
-        return False
+    all_passed = True
+    for name, success, *extra in results:
+        status = "✅" if success else "❌"
+        print(f"{status} {name}", *extra)
+        if not success:
+            all_passed = False
+    
+    print("="*50)
+    if all_passed:
+        print("🎉 所有组件验证通过！")
     else:
-        print("\n✅ 所有依赖已安装")
-        return True
+        print("⚠️ 部分组件验证失败")
+    
+    return all_passed
 
-# ======================== 主程序 =========================
+# ======================== 主程序入口 =========================
 def main():
-    """程序入口"""
-    try:
-        # 显示启动信息
-        Console.print_success(f"{Config.APP_NAME} v{Config.VERSION}")
-        Console.print_info("正在初始化系统...")
+    """主函数"""
+    parser = argparse.ArgumentParser(
+        description='IPTV源处理工具 - 专业增强版',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用示例:
+  python iptv_processor.py                    # 默认运行
+  python iptv_processor.py --validate        # 验证完整性
+  python iptv_processor.py --check-deps      # 检查依赖
+  python iptv_processor.py --template custom.txt  # 自定义模板
+  python iptv_processor.py --proxy http://proxy:8080 # 使用代理
+        """
+    )
+    
+    parser.add_argument('--validate', action='store_true', help='验证代码完整性')
+    parser.add_argument('--check-deps', action='store_true', help='检查依赖')
+    parser.add_argument('--template', type=str, help='模板文件路径')
+    parser.add_argument('--proxy', type=str, help='HTTP代理服务器')
+    parser.add_argument('--verbose', action='store_true', help='详细输出')
+    parser.add_argument('--version', action='store_true', help='显示版本')
+    
+    args = parser.parse_args()
+    
+    if args.version:
+        config = EnhancedConfig()
+        print(f"{config.app_name} v{config.version}")
+        return
+    
+    if args.validate:
+        sys.exit(0 if validate_integrity() else 1)
+    
+    if args.check_deps:
+        missing = []
+        for package in ['requests', 'yaml']:
+            try:
+                if package == 'yaml':
+                    __import__('yaml')
+                else:
+                    __import__(package)
+                print(f"✅ {package}")
+            except ImportError:
+                print(f"❌ {package}")
+                missing.append(package)
         
-        # 检查依赖（可选）
-        if len(sys.argv) > 1 and sys.argv[1] == '--check-deps':
-            if not check_dependencies():
-                return 1
-            return 0
-        
-        # 创建处理器实例
-        processor = IPTVProcessor()
-        
-        # 显示系统信息
-        health = processor.health_check()
-        Console.print_info(f"FFmpeg可用: {health.get('ffmpeg_available', False)}")
-        
-        # 开始处理
-        Console.print_info("开始处理IPTV源...")
-        success = processor.process()
-        
-        if success:
-            Console.print_success("IPTV处理完成！")
-            Console.print_info(f"输出文件:")
-            Console.print_info(f"  - {Config.OUTPUT_TXT} (TXT格式)")
-            Console.print_info(f"  - {Config.OUTPUT_M3U} (M3U格式)")
-            Console.print_info(f"  - {Config.OUTPUT_QUALITY_REPORT} (质量报告)")
+        if missing:
+            print(f"\n安装命令: pip install {' '.join(missing)}")
+            sys.exit(1)
         else:
-            Console.print_error("处理失败，请检查日志文件了解详情")
-            
-        return 0 if success else 1
+            print("\n✅ 所有依赖已安装")
+            sys.exit(0)
+    
+    try:
+        # 应用命令行参数
+        config = EnhancedConfig()
+        
+        if args.template:
+            if not os.path.exists(args.template):
+                Console.print_error(f"模板文件不存在: {args.template}")
+                return
+            config._template_file = args.template
+        
+        if args.proxy:
+            config.network['proxy'] = args.proxy
+        
+        # 创建处理器
+        processor = EnhancedIPTVProcessor()
+        
+        if args.verbose:
+            processor.logger.setLevel(logging.DEBUG)
+        
+        # 运行处理
+        success = processor.process()
+        sys.exit(0 if success else 1)
         
     except KeyboardInterrupt:
-        Console.print_warning("用户中断程序执行")
-        return 1
+        Console.print_warning("用户中断程序")
+        sys.exit(1)
     except Exception as e:
         Console.print_error(f"程序异常: {str(e)}")
-        logger.exception("程序异常详情:")
-        return 1
+        sys.exit(1)
 
 if __name__ == "__main__":
-    # 检查依赖参数
-    if len(sys.argv) > 1 and sys.argv[1] == '--check-deps':
-        sys.exit(0 if check_dependencies() else 1)
-    else:
-        sys.exit(main())
+    main()
