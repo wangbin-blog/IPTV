@@ -3,7 +3,7 @@ name: IPTV
 on:
   schedule:
     # 每天在05:00、12:00和17:00 UTC运行 (相当于北京时间13:00,20:00和次日01:00)
-    - cron: '0 5,12,17 * * *'
+    - cron: '05,12,17 * * *'
   workflow_dispatch: # 允许手动触发
 
 jobs:
