@@ -1,73 +1,43 @@
-name: Update
+name: IPTV
 
 on:
   schedule:
-    - cron: 05,12,17 * * * *
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-env:
-  TZ: Asia/Shanghai
+    # 每天凌晨3点运行 (UTC时间)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # 允许手动触发
+  push:
+    paths:
+      - 'demo.txt'
+      - 'sources.txt'
+      - '.github/workflows/iptv.yml'
 
 jobs:
-  Update:
+  generate:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Get time
-      run: echo "DATE=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pyyaml
+          sudo apt-get update && sudo apt-get install -y ffmpeg
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Run IPTV
+        run: python iptv.py
 
-    - name: Run script
-      run: |
-        python iptv.py
-        
-    - name: Update time
-      run: |
-        echo "## ✨于 $DATE 更新
-        **🎉最新可用IPTV源，觉得好用请点个STAR吧！**
-        
-        https://ghfast.top/raw.githubusercontent.com/TianmuTNT/iptv/main/iptv.txt
-        
-        https://ghfast.top/raw.githubusercontent.com/TianmuTNT/iptv/main/iptv.m3u
-        
-        **🎉最新可用IPTV源，觉得好用请点个STAR吧！**
-        " > README.md
-
-    - name: List files in workspace
-      run: ls -la
-
-    - name: Git status
-      run: git status
-
-    - name: Configure Git
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-    - name: Commit and Push changes
-      run: |
-        git add $(pwd)/iptv.txt
-        git add $(pwd)/iptv.m3u
-        git add $(pwd)/README.md
-        git commit -m "Update on $DATE" --allow-empty
-        git push origin main
-    - name: Upload streams file
-      uses: actions/upload-artifact@v4
-      with:
-        name: iptv
-        path: iptv.txt
+      - name: Commit changes
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add *.txt *.m3u *.log
+          git commit -m "Auto-generated IPTV sources [skip ci]" || echo "No changes to commit"
+          git push
