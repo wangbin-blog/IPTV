@@ -28,7 +28,7 @@ jobs:
     - name: Run IPTV Processor
       run: |
         echo "开始处理IPTV源..."
-        python main.py
+        python iptv.py
 
     - name: Update time
       run: |
