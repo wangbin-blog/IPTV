@@ -1,64 +1,157 @@
-name: IPTV
+name: IPTV Processor CI
 
 on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   schedule:
-    # 每天在05:00、12:00和17:00 UTC运行 (相当于北京时间13:00,20:00和次日01:00)
-    - cron: '05,12,17 * * *'
-  workflow_dispatch: # 允许手动触发
+    - cron: '0 3 * * *'  # 每日UTC 3点自动运行
+  workflow_dispatch:      # 允许手动触发
+    inputs:
+      force_refresh:
+        description: '强制刷新所有源'
+        required: false
+        default: 'false'
+
+env:
+  OUTPUT_DIR: './output'
+  CACHE_KEY: 'iptv-cache-${{ hashFiles('demo.txt') }}'
 
 jobs:
+  validate-inputs:
+    name: Validate Inputs
+    runs-on: ubuntu-latest
+    outputs:
+      valid: ${{ steps.validate.outputs.result }}
+    
+    steps:
+    - name: Check template file
+      id: validate
+      run: |
+        if [ ! -f demo.txt ]; then
+          echo "::warning::Missing demo.txt template"
+          echo "result=false" >> $GITHUB_OUTPUT
+        else
+          echo "result=true" >> $GITHUB_OUTPUT
+        fi
+
   process-iptv:
-    name: Run IPTV Processor
+    name: Process IPTV Sources
+    needs: validate-inputs
+    if: needs.validate-inputs.outputs.valid == 'true'
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    # 1. 环境准备
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+        cache: 'pip'
         
+    - name: Cache FFmpeg
+      uses: actions/cache@v3
+      with:
+        path: /usr/bin/ffmpeg
+        key: ${{ runner.os }}-ffmpeg-cache
+        
+    # 2. 依赖安装
     - name: Install dependencies
       run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
         python -m pip install --upgrade pip
-        pip install requests pyyaml
-        sudo apt-get update && sudo apt-get install -y ffmpeg
+        pip install -r requirements.txt
         
-    - name: Run IPTV Processor
+    # 3. 配置检查
+    - name: Verify config
       run: |
-        echo "开始处理IPTV源..."
-        python iptv.py
-
-    - name: IPTV time
+        echo "=== 系统检查 ==="
+        python --version
+        ffmpeg -version | head -n 1
+        echo "=== 模板检查 ==="
+        wc -l demo.txt
+        
+    # 4. 运行处理器 (带重试机制)
+    - name: Run processor
+      id: processor
+      continue-on-error: true
       run: |
-        echo "## ✨于 $DATE 更新
-        **🎉最新可用IPTV源，觉得好用请点个STAR吧！**
+        max_retries=3
+        retry_delay=10
         
-        https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/main/iptv.txt
+        for i in $(seq 1 $max_retries); do
+          python iptv_processor.py \
+            --output-dir $OUTPUT_DIR \
+            --max-threads ${{ env.MAX_THREADS || 8 }} \
+            --timeout ${{ env.TIMEOUT || 10 }} \
+            --force-refresh ${{ github.event.inputs.force_refresh || 'false' }}
+          
+          if [ $? -eq 0 ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            break
+          else
+            echo "::warning::Attempt $i failed, retrying in ${retry_delay}s..."
+            sleep $retry_delay
+          fi
+        done
         
-        https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/main/iptv.m3u
+        if [ $i -eq $max_retries ]; then
+          echo "::error::All retries failed"
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+      env:
+        MAX_THREADS: 12
+        TIMEOUT: 15
         
-        **🎉最新可用IPTV源，觉得好用请点个STAR吧！**" > README.md
+    # 5. 结果验证
+    - name: Validate outputs
+      if: steps.processor.outputs.status == 'success'
+      run: |
+        echo "=== 文件验证 ==="
+        ls -lh $OUTPUT_DIR/
         
-        echo "生成的文件:"
-        ls -lh iptv.txt iptv.m3u quality_report.json
+        echo "=== 内容检查 ==="
+        for file in $OUTPUT_DIR/*; do
+          echo ">> Checking $file"
+          [ -s "$file" ] || exit 1
+          grep -q "CCTV" "$file" || exit 1
+          echo "UTF-8 Check:" $(file -bi "$file" | grep -q 'utf-8' && echo "✅" || echo "❌")
+        done
         
-    - name: Upload results
+    # 6. 上传结果
+    - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: iptv-results
+        name: iptv-outputs-${{ github.run_id }}
         path: |
-          iptv.txt
-          iptv.m3u
-          quality_report.json
-          iptv_processor.log
+          $OUTPUT_DIR/*
+          !$OUTPUT_DIR/*.tmp
+        retention-days: 7
+        
+    # 7. 状态通知
+    - name: Notify status
+      if: always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { status } = process.env
+          const message = status === 'success' ? 
+            '✅ IPTV处理成功' : 
+            '❌ IPTV处理失败'
           
-    - name: Commit and push changes
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        git add iptv.txt iptv.m3u quality_report.json
-        git commit -m "Auto-update IPTV lists - $(date +'%Y-%m-%d %H:%M')" || echo "没有变化可提交"
-        git push || echo "没有变化可推送"
+          await github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `${message}\n\n` +
+                  `运行ID: ${context.runId}\n` +
+                  `日志: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+          })
+      env:
+        status: ${{ steps.processor.outputs.status || 'unknown' }}
