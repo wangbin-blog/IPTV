@@ -34,7 +34,7 @@ jobs:
 
     - name: Run script
       run: |
-        python get_iptv.py
+        python iptv.py
         
     - name: Update time
       run: |
