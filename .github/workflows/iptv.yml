@@ -1,4 +1,4 @@
-name: IPTV Processor Daily Run
+name: IPTV
 
 on:
   schedule:
