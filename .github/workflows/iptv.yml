@@ -34,7 +34,7 @@ jobs:
     - name: Run IPTV Processor
       run: |
         echo "开始处理IPTV源..."
-        python get_iptv.py --verbose
+        python iptv.py --verbose
         
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
