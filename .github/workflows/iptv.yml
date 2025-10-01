@@ -30,7 +30,7 @@ jobs:
         echo "开始处理IPTV源..."
         python iptv.py
 
-    - name: Update time
+    - name: IPTV time
       run: |
         echo "## ✨于 $DATE 更新
         **🎉最新可用IPTV源，觉得好用请点个STAR吧！**
