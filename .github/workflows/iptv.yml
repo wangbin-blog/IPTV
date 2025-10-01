@@ -2,42 +2,65 @@ name: IPTV
 
 on:
   schedule:
-    # 每天凌晨3点运行 (UTC时间)
-    - cron: '0 3 * * *'
+    # 每天在05:00、12:00和17:00 UTC运行 (相当于北京时间13:00,20:00和次日01:00)
+    - cron: '0 5,12,17 * * *'
   workflow_dispatch: # 允许手动触发
-  push:
-    paths:
-      - 'demo.txt'
-      - 'sources.txt'
-      - '.github/workflows/iptv.yml'
 
 jobs:
-  IPTV:
+  process-iptv:
+    name: Run IPTV Processor
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
+    - name: Checkout code
+      uses: actions/checkout@v4
+       with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests pyyaml
+        sudo apt-get update && sudo apt-get install -y ffmpeg
+        
+    - name: Run IPTV Processor
+      run: |
+        echo "开始处理IPTV源..."
+        python iptv.py
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests pyyaml
-          sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Run IPTV
-        run: python iptv.py
-
-      - name: Commit changes
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add *.txt *.m3u *.log
-          git commit -m "Auto-generated IPTV sources [skip ci]" || echo "No changes to commit"
-          git push
+    - name: IPTV time
+      run: |
+        echo "## ✨于 $DATE 更新
+        **🎉最新可用IPTV源，觉得好用请点个STAR吧！**
+        
+        https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/main/iptv.txt
+        
+        https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/main/iptv.m3u
+        
+        **🎉最新可用IPTV源，觉得好用请点个STAR吧！**" > README.md
+        
+        echo "生成的文件:"
+        ls -lh iptv.txt iptv.m3u quality_report.json
+        
+    - name: Upload results
+      uses: actions/upload-artifact@v3
+      with:
+        name: iptv-results
+        path: |
+          iptv.txt
+          iptv.m3u
+          quality_report.json
+          iptv_processor.log
+          
+    - name: Commit and push changes
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add iptv.txt iptv.m3u quality_report.json
+        git commit -m "Auto-update IPTV lists - $(date +'%Y-%m-%d %H:%M')" || echo "没有变化可提交"
+        git push || echo "没有变化可推送"
