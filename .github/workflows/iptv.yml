@@ -12,7 +12,7 @@ on:
       - '.github/workflows/iptv.yml'
 
 jobs:
-  generate:
+  IPTV:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
