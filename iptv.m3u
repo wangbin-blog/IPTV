@@ -1,21 +1,19 @@
 #EXTM3U
-#EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道
-https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=4bedf07187cf41e3529552c6213241d1&wsTime=1759384812
-#EXTINF:-1 tvg-name="浙江卫视" group-title="卫视频道",浙江卫视
-http://ali-m-l.cztv.com/channels/lantian/channel001/1080p.m3u8
-#EXTINF:-1 tvg-name="CHC影迷电影" group-title="卫视频道",CHC影迷电影
-http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=20251002100055164cbfae1778489494f5072f1a32f9fa&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251002100055&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.83&SecurityKey=20251002100055&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=9c457b6043ca55d103853a9a19f293ec&ddCalcu=c9ece340952270fb9610a493ac3a55853d01
-#EXTINF:-1 tvg-name="电影高分动作" group-title="卫视频道",电影高分动作
-http://cfss.cc/cdn/hy/11352884.m3u8
-#EXTINF:-1 tvg-name="电影_喜剧专场" group-title="卫视频道",电影_喜剧专场
-http://live.nctv.top/huya.php?id=11602044
-#EXTINF:-1 tvg-name="电影_喜乐影院" group-title="卫视频道",电影_喜乐影院
-http://cfss.cc/cdn/hy/21059580.m3u8
-#EXTINF:-1 tvg-name="周星驰电影" group-title="卫视频道",周星驰电影
-http://cfss.cc/cdn/hy/11336587.m3u8
-#EXTINF:-1 tvg-name="电影_李连杰" group-title="卫视频道",电影_李连杰
-http://live.nctv.top/huya.php?id=11342390
-#EXTINF:-1 tvg-name="电影_洪金宝" group-title="卫视频道",电影_洪金宝
-http://cfss.cc/cdn/hy/11279251.m3u8
-#EXTINF:-1 tvg-name="电影_枪战" group-title="卫视频道",电影_枪战
-http://live.nctv.top/huya.php?id=21059579
+#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4
+https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+#EXTINF:-1 tvg-name="CCTV-6" group-title="央视频道",CCTV-6
+http://zzssw01.55555.io:9901/tsfile/live/0006_1.m3u8
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8
+http://zzssw01.55555.io:9901/tsfile/live/0008_1.m3u8
+#EXTINF:-1 tvg-name="CCTV-14" group-title="央视频道",CCTV-14
+https://event.pull.hebtv.com/jishi/cp2.m3u8
+#EXTINF:-1 tvg-name="东南卫视" group-title="卫视频道",东南卫视
+http://live.zohi.tv/video/s10001-fztv-3/index.m3u8
+#EXTINF:-1 tvg-name="内蒙古卫视" group-title="卫视频道",内蒙古卫视
+https://ali-m-l.cztv.com/channels/lantian/channel007/1080p.m3u8
+#EXTINF:-1 tvg-name="三沙卫视" group-title="卫视频道",三沙卫视
+http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
+#EXTINF:-1 tvg-name="西藏卫视" group-title="卫视频道",西藏卫视
+http://php.jdshipin.com/xztv.php?id=ws
+#EXTINF:-1 tvg-name="新疆卫视" group-title="卫视频道",新疆卫视
+http://218.84.12.186:8001/hls/main/playlist.m3u8?zxinjd;http://218.84.12.186:8001/hls/main/playlist.m3u8zxinjd
