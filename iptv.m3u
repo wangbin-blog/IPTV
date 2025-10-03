@@ -1,8 +1,8 @@
 #EXTM3U
 #EXTINF:-1 tvg-name="CCTV-13" group-title="央视频道",CCTV-13
 https://event.pull.hebtv.com/jishi/cp1.m3u8
-#EXTINF:-1 tvg-name="安徽影视" group-title="卫视频道",安徽影视
-http://vapi.91kds.cc/live2/ahtv2.m3u8?id=ahys&apiKey=2079b631b519ec17da0bc09844eb8419
+#EXTINF:-1 tvg-name="安徽国际" group-title="卫视频道",安徽国际
+http://vapi.91kds.cc/live2/ahtv2.m3u8?id=ahgj&apiKey=2079b631b519ec17da0bc09844eb8419
 #EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道
 https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=e6c945d60cd1543dbd101c6effff52a3&wsTime=1759536007
 #EXTINF:-1 tvg-name="浙江卫视" group-title="卫视频道",浙江卫视
@@ -18,14 +18,8 @@ http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msis
 #EXTINF:-1 tvg-name="电影_喜剧专场" group-title="卫视频道",电影_喜剧专场
 http://live.nctv.top/huya.php?id=11602044
 #EXTINF:-1 tvg-name="电影_喜乐影院" group-title="卫视频道",电影_喜乐影院
-http://live.nctv.top/huya.php?id=21059580
+http://cfss.cc/cdn/hy/21059580.m3u8
 #EXTINF:-1 tvg-name="电影_李连杰" group-title="卫视频道",电影_李连杰
 http://live.nctv.top/huya.php?id=11342390
-#EXTINF:-1 tvg-name="电影_洪金宝" group-title="卫视频道",电影_洪金宝
-http://live.nctv.top/huya.php?id=11279251
-#EXTINF:-1 tvg-name="电影_武侠" group-title="卫视频道",电影_武侠
-http://cfss.cc/cdn/hy/11342427.m3u8
 #EXTINF:-1 tvg-name="电影_枪战" group-title="卫视频道",电影_枪战
 http://live.nctv.top/huya.php?id=21059579
-#EXTINF:-1 tvg-name="功夫电影" group-title="卫视频道",功夫电影
-http://cfss.cc/cdn/hy/11352941.m3u8
