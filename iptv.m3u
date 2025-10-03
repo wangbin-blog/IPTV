@@ -7,6 +7,8 @@ https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&tx
 http://ali-m-l.cztv.com/channels/lantian/channel001/1080p.m3u8
 #EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视
 http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
+#EXTINF:-1 tvg-name="山东卫视" group-title="卫视频道",山东卫视
+http://112.123.243.37:50085/tsfile/live/0122_1.m3u8?key=txiptv&playlive=0&authid=0
 #EXTINF:-1 tvg-name="深圳卫视" group-title="卫视频道",深圳卫视
 http://yncbn.ks-cdn.gitv.tv/gitv_live/G_SHENZHEN-HQ/G_SHENZHEN-HQ.m3u8
 #EXTINF:-1 tvg-name="三沙卫视" group-title="卫视频道",三沙卫视
@@ -15,10 +17,14 @@ http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
 http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=20251004060144310628af6d504d97b2b9215e22462792&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251004060144&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.90&SecurityKey=20251004060144&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=eee212ba58b7893f443e4e41c8383d6f&ddCalcu=fe6eede0322810328bca1548eb47e839434f
 #EXTINF:-1 tvg-name="电影_喜剧专场" group-title="卫视频道",电影_喜剧专场
 http://live.nctv.top/huya.php?id=11602044
+#EXTINF:-1 tvg-name="电影_喜乐影院" group-title="卫视频道",电影_喜乐影院
+http://cfss.cc/cdn/hy/21059580.m3u8
 #EXTINF:-1 tvg-name="电影_李连杰" group-title="卫视频道",电影_李连杰
 http://live.nctv.top/huya.php?id=11342390
 #EXTINF:-1 tvg-name="电影_洪金宝" group-title="卫视频道",电影_洪金宝
 http://cfss.cc/cdn/hy/11279251.m3u8
+#EXTINF:-1 tvg-name="电影_武侠" group-title="卫视频道",电影_武侠
+http://cfss.cc/cdn/hy/11342427.m3u8
 #EXTINF:-1 tvg-name="电影_枪战" group-title="卫视频道",电影_枪战
 http://live.nctv.top/huya.php?id=21059579
 #EXTINF:-1 tvg-name="武侠电影" group-title="卫视频道",武侠电影
