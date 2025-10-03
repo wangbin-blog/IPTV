@@ -17,9 +17,9 @@ http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msis
 http://cfss.cc/cdn/hy/11352884.m3u8
 #EXTINF:-1 tvg-name="电影_喜剧专场" group-title="卫视频道",电影_喜剧专场
 http://live.nctv.top/huya.php?id=11602044
-#EXTINF:-1 tvg-name="电影_喜乐影院" group-title="卫视频道",电影_喜乐影院
-http://cfss.cc/cdn/hy/21059580.m3u8
 #EXTINF:-1 tvg-name="电影_李连杰" group-title="卫视频道",电影_李连杰
 http://live.nctv.top/huya.php?id=11342390
+#EXTINF:-1 tvg-name="电影_武侠" group-title="卫视频道",电影_武侠
+http://cfss.cc/cdn/hy/11342427.m3u8
 #EXTINF:-1 tvg-name="电影_枪战" group-title="卫视频道",电影_枪战
 http://live.nctv.top/huya.php?id=21059579

@@ -10,7 +10,7 @@ CCTV-13,https://event.pull.hebtv.com/jishi/cp1.m3u8
 CHC影迷电影,http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=20251003100100f12034dc6753482ab2e091c670c990c7&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251003100100&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.89&SecurityKey=20251003100100&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=ceeacfc9c041fb17f39002a7948e3f4f&ddCalcu=fc4eefe03a2ec08f4c997ca024010f9b31f7
 电影高分动作,http://cfss.cc/cdn/hy/11352884.m3u8
 电影_喜剧专场,http://live.nctv.top/huya.php?id=11602044
-电影_喜乐影院,http://cfss.cc/cdn/hy/21059580.m3u8
 电影_李连杰,http://live.nctv.top/huya.php?id=11342390
+电影_武侠,http://cfss.cc/cdn/hy/11342427.m3u8
 电影_枪战,http://live.nctv.top/huya.php?id=21059579
 
