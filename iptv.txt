@@ -1,6 +1,17 @@
 央视频道,#genre#
-CCTV-4,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
 
 卫视频道,#genre#
+梨园频道,https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=2068cf5a3ab1f7c72a352f9f665f401a&wsTime=1759514422
+浙江卫视,http://ali-m-l.cztv.com/channels/lantian/channel001/1080p.m3u8
+海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
+深圳卫视,http://yncbn.ks-cdn.gitv.tv/gitv_live/G_SHENZHEN-HQ/G_SHENZHEN-HQ.m3u8
 三沙卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
+CHC影迷电影,http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=202510032200381dd1381e0da942d6bb366aef3397e199&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251003220038&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.90&SecurityKey=20251003220038&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=63baddf1c7e7ab1971360837251122cb&ddCalcu=b6c3e2b02a21d01d5f217c378e076a3b1179
+电影_喜剧专场,http://live.nctv.top/huya.php?id=11602044
+电影_喜乐影院,http://live.nctv.top/huya.php?id=21059580
+电影_李连杰,http://live.nctv.top/huya.php?id=11342390
+电影_洪金宝,http://live.nctv.top/huya.php?id=11279251
+电影_武侠,http://cfss.cc/cdn/hy/11342427.m3u8
+电影_枪战,http://live.nctv.top/huya.php?id=21059579
+功夫电影,http://cfss.cc/cdn/hy/11352941.m3u8
 
