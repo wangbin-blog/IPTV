@@ -1,4 +1,4 @@
-## ✨于 2025-10-04 22:19:55 更新
+## ✨于 2025-10-04 23:21:00 更新
 **🎉最新可用IPTV源，觉得好用请点个STAR吧！**
 
 https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.txt
