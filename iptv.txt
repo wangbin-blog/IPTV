@@ -2,18 +2,17 @@
 CCTV-13,https://event.pull.hebtv.com/jishi/cp1.m3u8
 
 卫视频道,#genre#
-梨园频道,https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=8096e491aca2841910af4db3c2751980&wsTime=1759766417
+梨园频道,https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=b980a574d538f51aefdcc8b03ef35e10&wsTime=1759773617
 浙江卫视,http://ali-m-l.cztv.com/channels/lantian/channel001/1080p.m3u8
 海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
+山东卫视,http://112.123.243.37:50085/tsfile/live/0122_1.m3u8?key=txiptv&playlive=0&authid=0
 三沙卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
-CHC影迷电影,http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=20251006200038f8c4eb018bd246d6832180e5600925fa&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251006200038&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.90&SecurityKey=20251006200038&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=7830ee0e6f721aaaf961678b3f737cad&ddCalcu=d7a8ec307023e07ef03eb68f7762116a9afa
-电影高分动作,http://cfss.cc/cdn/hy/11352884.m3u8
-电影_喜乐影院,http://cfss.cc/cdn/hy/21059580.m3u8
-古天乐电影,http://cfss.cc/cdn/hy/29982675.m3u8
+CHC影迷电影,http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=202510062200411a43f45531d143b7adb3c23265d76a0c&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251006220041&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.88&SecurityKey=20251006220041&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=2328a370a2c64f61b662bda149236de3&ddCalcu=32e3ed206823a02397401aa2dcb6246f66b1
+周星驰电影,http://cfss.cc/cdn/hy/11336587.m3u8
 刘德华电影,http://cfss.cc/cdn/hy/11342424.m3u8
-电影_李连杰,http://cfss.cc/cdn/hy/11342390.m3u8
 成龙电影,http://cfss.cc/cdn/hy/11342386.m3u8
-电影_洪金宝,http://cfss.cc/cdn/hy/11279251.m3u8
+功夫电影,http://cfss.cc/cdn/hy/11352941.m3u8
 武侠电影,http://cfss.cc/cdn/hy/11342427.m3u8
 金庸武侠,http://cfss.cc/cdn/hy/11342435.m3u8
+猫和老鼠,http://huanqiuzhibo.cn/manifest/huya.php?id=11352879
 
