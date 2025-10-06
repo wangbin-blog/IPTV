@@ -1,15 +1,29 @@
 #EXTM3U
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4
-https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
-#EXTINF:-1 tvg-name="CCTV-14" group-title="央视频道",CCTV-14
-https://event.pull.hebtv.com/jishi/cp2.m3u8
-#EXTINF:-1 tvg-name="东南卫视" group-title="卫视频道",东南卫视
-http://live.zohi.tv/video/s10001-fztv-3/index.m3u8
-#EXTINF:-1 tvg-name="内蒙古卫视" group-title="卫视频道",内蒙古卫视
-https://ali-m-l.cztv.com/channels/lantian/channel007/1080p.m3u8
+#EXTINF:-1 tvg-name="CCTV-13" group-title="央视频道",CCTV-13
+https://event.pull.hebtv.com/jishi/cp1.m3u8
+#EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道
+https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=412c453a79ad71d1de5158ea7078e6b6&wsTime=1759780800
+#EXTINF:-1 tvg-name="浙江卫视" group-title="卫视频道",浙江卫视
+http://ali-m-l.cztv.com/channels/lantian/channel001/1080p.m3u8
+#EXTINF:-1 tvg-name="广西卫视" group-title="卫视频道",广西卫视
+http://113.15.109.216:59901/tsfile/live/0113_1.m3u8?key=txiptv&playlive=1&authid=0
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视
+http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
+#EXTINF:-1 tvg-name="深圳卫视" group-title="卫视频道",深圳卫视
+http://yncbn.ks-cdn.gitv.tv/gitv_live/G_SHENZHEN-HQ/G_SHENZHEN-HQ.m3u8
 #EXTINF:-1 tvg-name="三沙卫视" group-title="卫视频道",三沙卫视
 http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
-#EXTINF:-1 tvg-name="西藏卫视" group-title="卫视频道",西藏卫视
-http://php.jdshipin.com/xztv.php?id=ws
-#EXTINF:-1 tvg-name="新疆卫视" group-title="卫视频道",新疆卫视
-http://218.84.12.186:8001/hls/main/playlist.m3u8?zxinjd;http://218.84.12.186:8001/hls/main/playlist.m3u8zxinjd
+#EXTINF:-1 tvg-name="CHC影迷电影" group-title="卫视频道",CHC影迷电影
+http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=202510062200411a43f45531d143b7adb3c23265d76a0c&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251006220041&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.88&SecurityKey=20251006220041&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=2328a370a2c64f61b662bda149236de3&ddCalcu=32e3ed206823a02397401aa2dcb6246f66b1
+#EXTINF:-1 tvg-name="电影_喜乐影院" group-title="卫视频道",电影_喜乐影院
+http://cfss.cc/cdn/hy/21059580.m3u8
+#EXTINF:-1 tvg-name="古天乐电影" group-title="卫视频道",古天乐电影
+http://cfss.cc/cdn/hy/29982675.m3u8
+#EXTINF:-1 tvg-name="电影_李连杰" group-title="卫视频道",电影_李连杰
+http://cfss.cc/cdn/hy/11342390.m3u8
+#EXTINF:-1 tvg-name="电影_武侠" group-title="卫视频道",电影_武侠
+http://cfss.cc/cdn/hy/11342427.m3u8
+#EXTINF:-1 tvg-name="强森电影" group-title="卫视频道",强森电影
+http://cfss.cc/cdn/hy/21059581.m3u8
+#EXTINF:-1 tvg-name="猫和老鼠" group-title="卫视频道",猫和老鼠
+http://huanqiuzhibo.cn/manifest/huya.php?id=11352879
