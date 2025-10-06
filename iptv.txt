@@ -1,13 +1,14 @@
 央视频道,#genre#
-CCTV-4,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
-CCTV-10,http://112.27.235.94:8000/hls/11/index.m3u8
-CCTV-14,https://event.pull.hebtv.com/jishi/cp2.m3u8
+CCTV-13,https://event.pull.hebtv.com/jishi/cp1.m3u8
 
 卫视频道,#genre#
-东南卫视,http://live.zohi.tv/video/s10001-fztv-3/index.m3u8
-内蒙古卫视,https://ali-m-l.cztv.com/channels/lantian/channel007/1080p.m3u8
-陕西卫视,http://60.16.0.216:5757/hls/40/index.m3u8
+梨园频道,https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=09dca625d1476d47d81b002b81e10fb1&wsTime=1759752014
+浙江卫视,http://ali-m-l.cztv.com/channels/lantian/channel001/1080p.m3u8
+海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
+深圳卫视,http://yncbn.ks-cdn.gitv.tv/gitv_live/G_SHENZHEN-HQ/G_SHENZHEN-HQ.m3u8
 三沙卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
-西藏卫视,http://php.jdshipin.com/xztv.php?id=ws
-新疆卫视,http://218.84.12.186:8001/hls/main/playlist.m3u8?zxinjd;http://218.84.12.186:8001/hls/main/playlist.m3u8zxinjd
+CHC影迷电影,http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=202510061600400d759b49e3b34fb5847b2abcd33103d5&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251006160040&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.89&SecurityKey=20251006160040&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=c2566aac0c1fab18dedd67b21735a2e2&ddCalcu=2ce2e250a625603a7a1c20bc716fdadbe1d8
+电影_洪金宝,http://cfss.cc/cdn/hy/11279251.m3u8
+电影_武侠,http://cfss.cc/cdn/hy/11342427.m3u8
+猫和老鼠,http://huanqiuzhibo.cn/manifest/huya.php?id=11352879
 
