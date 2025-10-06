@@ -1,17 +1,29 @@
 #EXTM3U
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4
-https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
-#EXTINF:-1 tvg-name="CCTV-12" group-title="央视频道",CCTV-12
-http://120.76.248.139/live/bfgd/4200000131.m3u8
-#EXTINF:-1 tvg-name="CCTV-14" group-title="央视频道",CCTV-14
-https://event.pull.hebtv.com/jishi/cp2.m3u8
-#EXTINF:-1 tvg-name="CCTV-15" group-title="央视频道",CCTV-15
-http://120.76.248.139/live/bfgd/4200000133.m3u8
-#EXTINF:-1 tvg-name="东南卫视" group-title="卫视频道",东南卫视
-http://live.zohi.tv/video/s10001-fztv-3/index.m3u8
-#EXTINF:-1 tvg-name="内蒙古卫视" group-title="卫视频道",内蒙古卫视
-https://ali-m-l.cztv.com/channels/lantian/channel007/1080p.m3u8
+#EXTINF:-1 tvg-name="CCTV-13" group-title="央视频道",CCTV-13
+https://event.pull.hebtv.com/jishi/cp1.m3u8
+#EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道
+https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=fedf6cf36353f9db2a48f3032bd57d68&wsTime=1759759216
+#EXTINF:-1 tvg-name="浙江卫视" group-title="卫视频道",浙江卫视
+http://ali-m-l.cztv.com/channels/lantian/channel001/1080p.m3u8
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视
+http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
+#EXTINF:-1 tvg-name="深圳卫视" group-title="卫视频道",深圳卫视
+http://yncbn.ks-cdn.gitv.tv/gitv_live/G_SHENZHEN-HQ/G_SHENZHEN-HQ.m3u8
 #EXTINF:-1 tvg-name="三沙卫视" group-title="卫视频道",三沙卫视
 http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
-#EXTINF:-1 tvg-name="西藏卫视" group-title="卫视频道",西藏卫视
-http://php.jdshipin.com/xztv.php?id=ws
+#EXTINF:-1 tvg-name="电影_喜乐影院" group-title="卫视频道",电影_喜乐影院
+http://cfss.cc/cdn/hy/21059580.m3u8
+#EXTINF:-1 tvg-name="刘德华电影" group-title="卫视频道",刘德华电影
+http://cfss.cc/cdn/hy/11342424.m3u8
+#EXTINF:-1 tvg-name="电影_李连杰" group-title="卫视频道",电影_李连杰
+http://cfss.cc/cdn/hy/11342390.m3u8
+#EXTINF:-1 tvg-name="成龙电影" group-title="卫视频道",成龙电影
+http://cfss.cc/cdn/hy/11342386.m3u8
+#EXTINF:-1 tvg-name="功夫电影" group-title="卫视频道",功夫电影
+http://cfss.cc/cdn/hy/11352941.m3u8
+#EXTINF:-1 tvg-name="武侠电影" group-title="卫视频道",武侠电影
+http://cfss.cc/cdn/hy/11342427.m3u8
+#EXTINF:-1 tvg-name="金庸武侠" group-title="卫视频道",金庸武侠
+http://cfss.cc/cdn/hy/11342435.m3u8
+#EXTINF:-1 tvg-name="猫和老鼠" group-title="卫视频道",猫和老鼠
+http://huanqiuzhibo.cn/manifest/huya.php?id=11352879
