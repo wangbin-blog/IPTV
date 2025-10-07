@@ -65,8 +65,16 @@ class Config:
         "https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/global.m3u",
         
         # 加速镜像源
-        "https://mirror.ghproxy.com/https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
-        "https://mirror.ghproxy.com/https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u",
+       "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
+       "https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u",
+       "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
+       "https://gh-proxy.com/https://raw.githubusercontent.com/wwb521/live/main/tv.m3u",
+       "https://gh-proxy.com/https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u",
+       "https://raw.githubusercontent.com/Guovin/iptv-database/master/result.txt",  
+       "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u",
+       "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
+       "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
+       "http://47.120.41.246:8899/zb.txt",
     ]
     
     # ==================== 请求头配置 ====================
