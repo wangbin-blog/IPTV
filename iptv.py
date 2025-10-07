@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-IPTV智能管理工具 - 优化测速版
-功能：智能多源抓取、智能测速（关闭FFmpeg）、播放列表生成
-版本：v3.2 (优化测速版)
+IPTV智能管理工具 - 完整优化版
+功能：智能多源抓取、智能测速、播放列表生成
+版本：v3.1 (完整性优化版)
 """
 
 import requests
@@ -30,7 +30,7 @@ logging.basicConfig(
 logger = logging.getLogger('IPTVManager')
 
 class Config:
-    """配置类 - 优化测速版"""
+    """配置类 - 完整优化版"""
     
     # ==================== 文件配置（根目录） ====================
     TEMPLATE_FILE: str = "demo.txt"              # 模板文件（根目录）
@@ -55,17 +55,26 @@ class Config:
     # ==================== 智能源URL配置 ====================
     SOURCE_URLS: List[str] = [
         # 国内稳定源（优先）
-            "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
-            "https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u",
-            "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
-            "https://gh-proxy.com/https://raw.githubusercontent.com/wwb521/live/main/tv.m3u",
-            "https://gh-proxy.com/https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u",
-            "https://raw.githubusercontent.com/Guovin/iptv-database/master/result.txt",  
-            "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u",
-            "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
-            "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
-            "http://47.120.41.246:8899/zb.txt",
-            "https://live.zbds.top/tv/iptv4.txt",
+        "https://live.zbds.top/tv/iptv6.txt",
+        "https://live.zbds.top/tv/iptv4.txt",
+        "http://home.jundie.top:81/top/tvbox.txt",
+        
+        # GitHub官方源（备用）
+        "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
+        "https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u",
+        "https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/global.m3u",
+        
+        # 加速镜像源
+       "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
+       "https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u",
+       "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
+       "https://gh-proxy.com/https://raw.githubusercontent.com/wwb521/live/main/tv.m3u",
+       "https://gh-proxy.com/https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u",
+       "https://raw.githubusercontent.com/Guovin/iptv-database/master/result.txt",  
+       "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u",
+       "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
+       "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
+       "http://47.120.41.246:8899/zb.txt",
     ]
     
     # ==================== 请求头配置 ====================
@@ -87,13 +96,10 @@ class Config:
         'rtmp': 'rtmp://',
         'rtsp': 'rtsp://'
     }
-    
-    # ==================== 测速模式配置 ====================
-    USE_FFMPEG_TEST: bool = False  # 关闭FFmpeg测速，使用智能HTTP测速
 
 
 class IPTVManager:
-    """IPTV智能管理工具核心类 - 优化测速版"""
+    """IPTV智能管理工具核心类 - 完整优化版"""
     
     def __init__(self, config: Config = None) -> None:
         """初始化IPTV管理器"""
@@ -110,7 +116,7 @@ class IPTVManager:
         # 创建必要的目录
         self._setup_directories()
         
-        # 检查FFmpeg（仅用于信息显示）
+        # 检查FFmpeg
         self.ffmpeg_available: bool = self._check_ffmpeg()
         
         # 统计信息
@@ -121,9 +127,6 @@ class IPTVManager:
             'sources_tested': 0,
             'sources_available': 0
         }
-        
-        # 频道测速结果存储
-        self.channel_speed_results: Dict[str, List[Dict]] = {}
         
         # 打印配置信息
         self._print_config()
@@ -140,7 +143,7 @@ class IPTVManager:
         logger.info(f"⏱️  测速超时: {self.config.SPEED_TEST_TIMEOUT}秒")
         logger.info(f"🎯 相似度阈值: {self.config.SIMILARITY_THRESHOLD}")
         logger.info(f"📺 每频道最大源: {self.config.MAX_SOURCES_PER_CHANNEL}")
-        logger.info(f"🔧 FFmpeg测速: {'开启' if self.config.USE_FFMPEG_TEST else '关闭'}")
+        logger.info(f"🔧 FFmpeg可用: {self.ffmpeg_available}")
         logger.info("=" * 50)
 
     def _setup_directories(self) -> None:
@@ -174,10 +177,7 @@ class IPTVManager:
             raise
 
     def _check_ffmpeg(self) -> bool:
-        """检查FFmpeg是否可用（仅用于信息显示）"""
-        if not self.config.USE_FFMPEG_TEST:
-            return False
-            
+        """检查FFmpeg是否可用"""
         try:
             result = subprocess.run(
                 ['ffmpeg', '-version'], 
@@ -688,8 +688,84 @@ class IPTVManager:
             logger.error("❌ 没有找到任何匹配的频道")
             return pd.DataFrame()
 
+    def speed_test_ffmpeg(self, stream_url: str) -> Tuple[bool, float]:
+        """使用FFmpeg进行流媒体测速"""
+        if not self.ffmpeg_available or not stream_url:
+            return False, float('inf')
+            
+        temp_file: Path = Path(self.config.TEMP_DIR) / f'test_{abs(hash(stream_url))}.ts'
+        
+        try:
+            cmd: List[str] = [
+                'ffmpeg',
+                '-y',
+                '-timeout', '8000000',
+                '-rw_timeout', '8000000',
+                '-i', stream_url,
+                '-t', str(self.config.FFMPEG_TEST_DURATION),
+                '-c', 'copy',
+                '-f', 'mpegts',
+                '-max_muxing_queue_size', '1024',
+                '-analyzeduration', '1000000',
+                '-probesize', '1000000',
+                str(temp_file)
+            ]
+            
+            start_time: float = time.time()
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE
+            )
+            
+            try:
+                stdout, stderr = process.communicate(timeout=self.config.FFMPEG_PROCESS_TIMEOUT)
+                end_time: float = time.time()
+                
+                if process.returncode == 0:
+                    speed: float = end_time - start_time
+                    success: bool = True
+                    
+                    # 验证输出文件
+                    if temp_file.exists() and temp_file.stat().st_size > 1024:
+                        logger.debug(f"✅ FFmpeg测速成功: {speed:.2f}秒 - {stream_url[:50]}...")
+                    else:
+                        logger.debug(f"⚠️ FFmpeg测速文件过小: {stream_url[:50]}...")
+                        success = False
+                        speed = float('inf')
+                else:
+                    logger.debug(f"❌ FFmpeg测速失败(码:{process.returncode}): {stream_url[:50]}...")
+                    success = False
+                    speed = float('inf')
+                    
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, stderr = process.communicate()
+                logger.debug(f"⏰ FFmpeg测速超时: {stream_url[:50]}...")
+                success = False
+                speed = float('inf')
+            
+            # 清理临时文件
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except:
+                    pass
+            
+            return success, speed
+                
+        except Exception as e:
+            logger.debug(f"⚠️ FFmpeg测速异常: {e} - {stream_url[:50]}...")
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except:
+                    pass
+            return False, float('inf')
+
     def speed_test_simple(self, stream_url: str) -> Tuple[bool, float]:
-        """智能HTTP测速"""
+        """简单的HTTP测速"""
         if not stream_url:
             return False, float('inf')
             
@@ -708,26 +784,14 @@ class IPTVManager:
             
             if response.status_code in [200, 206, 302, 301, 307]:
                 content_type: str = response.headers.get('Content-Type', '').lower()
-                content_length: str = response.headers.get('Content-Length', '')
+                valid_content_types = ['video/', 'audio/', 'application/', 'text/']
                 
-                # 更智能的内容类型判断
-                valid_content_types = ['video/', 'audio/', 'application/', 'text/', 'image/']
-                valid_content = any(ct in content_type for ct in valid_content_types)
-                
-                # 检查是否是有效的流媒体
-                is_stream: bool = (
-                    'm3u' in content_type or 
-                    'm3u' in stream_url.lower() or
-                    content_type.startswith('video/') or
-                    content_type.startswith('audio/') or
-                    int(content_length) > 100 if content_length.isdigit() else False
-                )
-                
-                if valid_content and is_stream:
+                if any(ct in content_type for ct in valid_content_types) or 'm3u' in content_type:
                     speed: float = end_time - start_time
+                    logger.debug(f"✅ HTTP测速成功: {speed:.2f}秒 - {stream_url[:50]}...")
                     return True, speed
                 else:
-                    logger.debug(f"⚠️ 无效Content-Type或内容: {content_type} - {stream_url[:50]}...")
+                    logger.debug(f"⚠️ 无效Content-Type: {content_type} - {stream_url[:50]}...")
                     return False, float('inf')
             else:
                 logger.debug(f"❌ HTTP状态码 {response.status_code}: {stream_url[:50]}...")
@@ -741,8 +805,8 @@ class IPTVManager:
             return False, float('inf')
 
     def speed_test_sources(self, sources_df: pd.DataFrame) -> pd.DataFrame:
-        """测速实现 - 显示每个频道结果"""
-        logger.info(f"⏱️  开始智能测速 (HTTP模式)...")
+        """测速实现"""
+        logger.info(f"⏱️  开始智能测速...")
         
         if sources_df.empty:
             logger.error("❌ 没有需要测速的源")
@@ -751,41 +815,35 @@ class IPTVManager:
         results: List[Dict[str, Any]] = []
         total_sources: int = len(sources_df)
         
-        print("\n⚡ 频道测速结果:")
-        print("-" * 80)
+        print("⚡ 测速进度: ", end="", flush=True)
         
         def test_single_source(row: pd.Series) -> Dict[str, Any]:
             try:
                 program_name: str = row['program_name']
                 stream_url: str = row['stream_url']
-                original_name: str = row.get('original_name', '')
-                match_score: int = row.get('match_score', 0)
                 
-                # 使用智能HTTP测速
-                accessible, speed = self.speed_test_simple(stream_url)
+                # 根据流类型选择测速方式
+                stream_type: str = self._detect_stream_type(stream_url)
                 
-                result = {
+                if stream_type in ['m3u8', 'ts', 'flv', 'mp4', 'rtmp', 'rtsp']:
+                    if self.ffmpeg_available:
+                        accessible, speed = self.speed_test_ffmpeg(stream_url)
+                    else:
+                        accessible, speed = self.speed_test_simple(stream_url)
+                else:
+                    accessible, speed = self.speed_test_simple(stream_url)
+                
+                return {
                     'program_name': program_name,
                     'stream_url': stream_url,
                     'accessible': accessible,
                     'speed': speed,
-                    'original_name': original_name,
-                    'match_score': match_score,
-                    'stream_type': self._detect_stream_type(stream_url)
+                    'original_name': row.get('original_name', ''),
+                    'match_score': row.get('match_score', 0),
+                    'stream_type': stream_type
                 }
-                
-                # 实时显示每个源的测速结果
-                status_icon = "✅" if accessible else "❌"
-                speed_display = f"{speed:.2f}s" if accessible else "超时"
-                match_display = f"(匹配:{match_score}%)"
-                
-                print(f"  {status_icon} {program_name:20} {speed_display:8} {match_display:12} {original_name[:30]}...")
-                
-                return result
-                
             except Exception as e:
                 logger.debug(f"测速过程异常: {e}")
-                print(f"  💥 {program_name:20} 错误        {original_name[:30]}...")
                 return {
                     'program_name': row.get('program_name', '未知'),
                     'stream_url': row.get('stream_url', ''),
@@ -800,13 +858,26 @@ class IPTVManager:
             completed: int = 0
             for future in as_completed(futures):
                 try:
-                    timeout: int = self.config.SPEED_TEST_TIMEOUT + 5
+                    timeout: int = max(self.config.FFMPEG_PROCESS_TIMEOUT, self.config.SPEED_TEST_TIMEOUT) + 5
                     result: Dict[str, Any] = future.result(timeout=timeout)
                     results.append(result)
                     completed += 1
+                    
+                    if result['accessible']:
+                        if result['speed'] < 3:
+                            print("🚀", end="", flush=True)
+                        elif result['speed'] < 6:
+                            print("⚡", end="", flush=True)
+                        else:
+                            print("✅", end="", flush=True)
+                    else:
+                        print("❌", end="", flush=True)
+                        
+                    if completed % 10 == 0:
+                        print(f"({completed}/{total_sources})", end="", flush=True)
                         
                 except TimeoutError:
-                    print(f"  ⏰ 超时频道")
+                    print("⏰", end="", flush=True)
                     results.append({
                         'program_name': '超时频道',
                         'stream_url': '',
@@ -815,10 +886,10 @@ class IPTVManager:
                         'stream_type': 'timeout'
                     })
                 except Exception as e:
-                    print(f"  💥 测速异常")
+                    print("💥", end="", flush=True)
                     logger.debug(f"测速任务异常: {e}")
         
-        print("-" * 80)
+        print()  # 换行
         
         try:
             result_df: pd.DataFrame = pd.DataFrame(results)
@@ -841,17 +912,6 @@ class IPTVManager:
             
             logger.info(f"📊 测速完成: {accessible_count}/{total_sources} 个源可用")
             logger.info(f"📈 平均响应时间: {avg_speed:.2f} 秒")
-            
-            # 存储频道测速结果用于后续显示
-            for _, row in accessible_df.iterrows():
-                channel = row['program_name']
-                if channel not in self.channel_speed_results:
-                    self.channel_speed_results[channel] = []
-                self.channel_speed_results[channel].append({
-                    'url': row['stream_url'],
-                    'speed': row['speed'],
-                    'match_score': row['match_score']
-                })
             
             return accessible_df
             
@@ -880,8 +940,7 @@ class IPTVManager:
             logger.error("❌ 测速数据或模板分类为空")
             return final_data
         
-        print("\n📦 频道源统计:")
-        print("-" * 60)
+        print("📦 生成进度: ", end="", flush=True)
         
         for category, channels in template_categories.items():
             final_data[category] = {}
@@ -896,17 +955,19 @@ class IPTVManager:
                     total_sources += len(best_sources)
                     
                     source_count: int = len(best_sources)
-                    speed_avg: float = sum(s['speed'] for s in final_data[category][channel]) / source_count
-                    
-                    # 显示每个频道的源数量和质量
-                    quality_icon = "🚀" if speed_avg < 3 else "⚡" if speed_avg < 6 else "✅"
-                    print(f"  {quality_icon} {channel:20} {source_count:2d}个源 平均{speed_avg:.2f}秒")
-                    
+                    if source_count >= 8:
+                        print("8️⃣", end="", flush=True)
+                    elif source_count >= 5:
+                        print("5️⃣", end="", flush=True)
+                    elif source_count >= 3:
+                        print("3️⃣", end="", flush=True)
+                    else:
+                        print("1️⃣", end="", flush=True)
                 else:
                     final_data[category][channel] = []
-                    print(f"  ❌ {channel:20} 0个源")
+                    print("❌", end="", flush=True)
         
-        print("-" * 60)
+        print()  # 换行
         logger.info(f"📦 总共收集到 {total_sources} 个有效源")
         
         return final_data
@@ -951,13 +1012,11 @@ class IPTVManager:
                 f.write("#PLAYLIST: IPTV智能列表\n")
                 f.write("#GENERATED: " + time.strftime("%Y-%m-%d %H:%M:%S") + "\n")
                 f.write("#SOURCE: 多源智能聚合\n")
-                f.write("#SPEED_TEST: HTTP智能测速\n")
                 
                 for category, channels in final_data.items():
                     for channel, sources in channels.items():
                         for idx, source in enumerate(sources, 1):
-                            speed_info = f"响应{source['speed']:.1f}秒" if source['speed'] < 10 else "响应较慢"
-                            display_name: str = f"{channel}" if len(sources) == 1 else f"{channel} [源{idx}-{speed_info}]"
+                            display_name: str = f"{channel}" if len(sources) == 1 else f"{channel} [源{idx}]"
                             f.write(f'#EXTINF:-1 tvg-name="{channel}" group-title="{category}",{display_name}\n')
                             f.write(f"{source['stream_url']}\n")
             
@@ -1082,7 +1141,6 @@ CCTV-8
         print(f"🔧 流解析: {self.stats['streams_parsed']}个流")
         print(f"🎯 频道匹配: {self.stats['channels_matched']}个频道")
         print(f"⚡ 源测速: {self.stats['sources_tested']}个测试, {self.stats['sources_available']}个可用")
-        print(f"🔧 测速模式: HTTP智能测速")
 
     def cleanup(self) -> None:
         """清理临时文件"""
@@ -1097,8 +1155,8 @@ CCTV-8
     def run(self) -> None:
         """主运行函数"""
         print("=" * 60)
-        print("🎬 IPTV智能管理工具 - 优化测速版 v3.2")
-        print("🔧 关闭FFmpeg测速 + 智能HTTP测速 + 详细结果显示")
+        print("🎬 IPTV智能管理工具 - 完整优化版 v3.1")
+        print("🔧 代码完整性优化 + 智能多源抓取 + 智能测速")
         print("📺 每个频道最多8个备用源")
         print("=" * 60)
         
@@ -1116,6 +1174,16 @@ CCTV-8
                 return
             
             # 执行处理流程
+            steps = [
+                ("加载频道模板", self.load_template),
+                ("智能多源抓取", self.fetch_all_streams),
+                ("整理源数据", lambda: self.organize_streams(self.fetch_all_streams()) if 'content' not in locals() else self.organize_streams(content)),
+                ("智能频道匹配", lambda: self.filter_and_sort_sources(sources_df, all_template_channels) if 'sources_df' in locals() and 'all_template_channels' in locals() else None),
+                ("智能测速", lambda: self.speed_test_sources(filtered_df) if 'filtered_df' in locals() else None),
+                ("生成播放列表", lambda: self.generate_final_data(speed_tested_df, template_categories) if 'speed_tested_df' in locals() and 'template_categories' in locals() else None)
+            ]
+            
+            # 按顺序执行步骤
             template_categories = self.load_template()
             if not template_categories:
                 return
