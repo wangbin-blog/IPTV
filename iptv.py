@@ -44,9 +44,9 @@ class Config:
     MAX_WORKERS: int = 5                         # 最大并发数
     
     # ==================== 测速配置 ====================
-    SPEED_TEST_TIMEOUT: int = 8                  # HTTP测速超时时间(秒)
-    FFMPEG_TEST_DURATION: int = 5                # FFmpeg测试时长(秒)
-    FFMPEG_PROCESS_TIMEOUT: int = 12             # FFmpeg进程超时(秒)
+    SPEED_TEST_TIMEOUT: int = 15                  # HTTP测速超时时间(秒)
+    FFMPEG_TEST_DURATION: int = 15                # FFmpeg测试时长(秒)
+    FFMPEG_PROCESS_TIMEOUT: int = 20             # FFmpeg进程超时(秒)
     
     # ==================== 匹配配置 ====================
     SIMILARITY_THRESHOLD: int = 60               # 相似度阈值(0-100)
