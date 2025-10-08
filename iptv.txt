@@ -1,22 +1,9 @@
-# IPTV播放列表 - 生成时间: 2025-10-08 20:58:48
+# IPTV播放列表 - 生成时间: 2025-10-08 21:37:52
 # 每个频道提供多个备用源，最多8个
 # 格式: 频道名称,直播流地址
 
 央视频道,#genre#
-CCTV-13,https://event.pull.hebtv.com/jishi/cp1.m3u8
 
 卫视频道,#genre#
-梨园频道,https://dxtx.hntv.tv/live/lypd.m3u8?txSecret=10c771842a0be59e8b575d765173ec96&txTime=7B923E0A&wsSecret=eff72d1d007a42de03493bad4a2f6b39&wsTime=1759939217
-浙江卫视,http://ali-m-l.cztv.com/channels/lantian/channel001/1080p.m3u8
-海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
-深圳卫视,http://yncbn.ks-cdn.gitv.tv/gitv_live/G_SHENZHEN-HQ/G_SHENZHEN-HQ.m3u8
 三沙卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
-CHC影迷电影,http://gslbmgsplive.miguvideo.com/migu/kailu/chcymdy/51/20250415/index.m3u8?msisdn=202510082000376ea158e7d85942448b1c87e38f16314c&mdspid=&spid=699004&netType=0&sid=5910022176&pid=2028597139&timestamp=20251008200037&Channel_ID=0116_2600000900-99000-201600010010027&ProgramID=952383261&ParentNodeID=-99&assertID=5910022176&client_ip=106.13.250.89&SecurityKey=20251008200037&promotionId=&mvid=5900006704&mcid=500020&playurlVersion=WX-A1-8.9.2-RELEASE&userid=&jmhm=&videocodec=h264&bean=mgspad&tid=android&conFee=0&puData=6d38f91e9508b4bd73b725afaa3eb4c4&ddCalcu=46cde430b82ef039a1aef9a550287bb43b7d
-电影高分动作,http://cfss.cc/cdn/hy/11352884.m3u8
-电影_喜乐影院,http://cfss.cc/cdn/hy/21059580.m3u8
-电影_李连杰,http://cfss.cc/cdn/hy/11342390.m3u8
-电影_洪金宝,http://cfss.cc/cdn/hy/11279251.m3u8
-强森电影,http://cfss.cc/cdn/hy/21059581.m3u8
-金庸武侠,http://cfss.cc/cdn/hy/11342435.m3u8
-猫和老鼠,http://huanqiuzhibo.cn/manifest/huya.php?id=11352879
 
