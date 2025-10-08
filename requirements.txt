@@ -1,2 +1,11 @@
-requests>=2.25.1
-pandas>=1.3.0
+# IPTV智能管理工具 - 完整功能版
+requests>=2.31.0
+pandas>=2.0.0
+numpy>=1.24.0
+python-dateutil>=2.8.2
+pytz>=2023.3
+psutil>=5.9.5
+ffmpeg-python>=0.2.0
+tqdm>=4.65.0
+rich>=13.5.0
+typing-extensions>=4.7.0
