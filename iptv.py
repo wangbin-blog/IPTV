@@ -132,8 +132,6 @@ class ConfigManager:
         self.source_urls: List[str] = [
             "https://live.zbds.top/tv/iptv4.txt",
             "https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u",
-            "https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/global.m3u",
-            "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
             "https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/countries/cn.m3u",
             "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
             "https://raw.githubusercontent.com/Guovin/iptv-database/master/result.txt",  
