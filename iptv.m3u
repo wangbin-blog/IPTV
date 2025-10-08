@@ -1,6 +1,14 @@
 #EXTM3U
 #PLAYLIST: IPTV智能列表
-#GENERATED: 2025-10-08 14:39:35
+#GENERATED: 2025-10-08 15:27:08
 #SOURCE: 多源智能聚合
+#EXTINF:-1 tvg-name="内蒙古卫视" group-title="卫视频道",内蒙古卫视
+http://ygbh.site/php/bfgd.php?id=110
+#EXTINF:-1 tvg-name="陕西卫视" group-title="卫视频道",陕西卫视
+http://ygbh.site/php/bfgd.php?id=114
 #EXTINF:-1 tvg-name="三沙卫视" group-title="卫视频道",三沙卫视
 http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
+#EXTINF:-1 tvg-name="西藏卫视" group-title="卫视频道",西藏卫视
+http://ygbh.site/php/bfgd.php?id=121
+#EXTINF:-1 tvg-name="新疆卫视" group-title="卫视频道",新疆卫视
+http://ygbh.site/php/bfgd.php?id=150

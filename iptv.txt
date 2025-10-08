@@ -1,9 +1,13 @@
-# IPTV播放列表 - 生成时间: 2025-10-08 14:39:35
+# IPTV播放列表 - 生成时间: 2025-10-08 15:27:08
 # 每个频道提供多个备用源，最多8个
 # 格式: 频道名称,直播流地址
 
 央视频道,#genre#
 
 卫视频道,#genre#
+内蒙古卫视,http://ygbh.site/php/bfgd.php?id=110
+陕西卫视,http://ygbh.site/php/bfgd.php?id=114
 三沙卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
+西藏卫视,http://ygbh.site/php/bfgd.php?id=121
+新疆卫视,http://ygbh.site/php/bfgd.php?id=150
 
