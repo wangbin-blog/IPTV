@@ -130,7 +130,6 @@ class ConfigManager:
         
         # 源URL配置 - 增加更多源以提高覆盖率
         self.source_urls: List[str] = [
-            "https://live.zbds.top/tv/iptv6.txt",
             "https://live.zbds.top/tv/iptv4.txt",
             "http://home.jundie.top:81/top/tvbox.txt",
             "https://raw.githubusercontent.com/zwc456baby/iptv_alive/master/live.txt",
