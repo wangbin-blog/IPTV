@@ -1,51 +1,35 @@
 #EXTM3U
 #PLAYLIST: IPTV智能列表
-#GENERATED: 2025-10-09 19:22:25
+#GENERATED: 2025-10-09 20:14:10
 #PROCESS: 智能抓取→测速过滤→模板匹配→生成文件
-#EXTINF:-1 tvg-name="CCTV-1" group-title="央视频道",CCTV-1 [源1] [极速]
-https://cc06.tv12.xyz/1.m3u8
-#EXTINF:-1 tvg-name="CCTV-1" group-title="央视频道",CCTV-1 [源2] [极速]
+#EXTINF:-1 tvg-name="CCTV-1" group-title="央视频道",CCTV-1 [极速]
 http://ygbh.site/php/bfgd.php?id=488
-#EXTINF:-1 tvg-name="CCTV-2" group-title="央视频道",CCTV-2 [源1] [极速]
-https://cc06.tv12.xyz/2.m3u8
-#EXTINF:-1 tvg-name="CCTV-2" group-title="央视频道",CCTV-2 [源2] [极速]
+#EXTINF:-1 tvg-name="CCTV-2" group-title="央视频道",CCTV-2 [极速]
 http://ygbh.site/php/bfgd.php?id=061
-#EXTINF:-1 tvg-name="CCTV-3" group-title="央视频道",CCTV-3 [源1] [极速]
-https://cc06.tv12.xyz/3.m3u8
-#EXTINF:-1 tvg-name="CCTV-3" group-title="央视频道",CCTV-3 [源2] [极速]
+#EXTINF:-1 tvg-name="CCTV-3" group-title="央视频道",CCTV-3 [极速]
 http://ygbh.site/php/bfgd.php?id=062
 #EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源1] [极速]
-https://uvotv-aniview.global.ssl.fastly.net/hls/live/2119696/cctv4/playlist.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源2] [极速]
-https://cc06.tv12.xyz/4.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源3] [极速]
 http://www.lizhinas.top:1009/rtp/239.252.219.98:5140
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源4] [极速]
+#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源2] [极速]
 http://ygbh.site/php/bfgd.php?id=063
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源5] [极速]
+#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源3] [极速]
+https://uvotv-aniview.global.ssl.fastly.net/hls/live/2119696/cctv4/playlist.m3u8
+#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源4] [极速]
 https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
 #EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源1] [极速]
-https://cc06.tv12.xyz/5.m3u8
+http://ygbh.site/php/bfgd.php?id=064
 #EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源2] [极速]
-https://cc06.tv12.xyz/6.m3u8
-#EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源3] [极速]
 http://ygbh.site/php/bfgd.php?id=246
-#EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源4] [极速]
-http://ygbh.site/php/bfgd.php?id=064
 #EXTINF:-1 tvg-name="CCTV-5+" group-title="央视频道",CCTV-5+ [源1] [极速]
-https://cc06.tv12.xyz/5.m3u8
-#EXTINF:-1 tvg-name="CCTV-5+" group-title="央视频道",CCTV-5+ [源2] [极速]
-https://cc06.tv12.xyz/6.m3u8
-#EXTINF:-1 tvg-name="CCTV-5+" group-title="央视频道",CCTV-5+ [源3] [极速]
-http://ygbh.site/php/bfgd.php?id=246
-#EXTINF:-1 tvg-name="CCTV-5+" group-title="央视频道",CCTV-5+ [源4] [极速]
 http://ygbh.site/php/bfgd.php?id=064
+#EXTINF:-1 tvg-name="CCTV-5+" group-title="央视频道",CCTV-5+ [源2] [极速]
+http://ygbh.site/php/bfgd.php?id=246
 #EXTINF:-1 tvg-name="CCTV-6" group-title="央视频道",CCTV-6 [源1] [极速]
 https://cc06.tv12.xyz/7.m3u8
 #EXTINF:-1 tvg-name="CCTV-6" group-title="央视频道",CCTV-6 [源2] [极速]
-http://8.138.7.223/tv/1905.php?id=LIVE3YPYZ30E7V1R0
-#EXTINF:-1 tvg-name="CCTV-6" group-title="央视频道",CCTV-6 [源3] [极速]
 http://ygbh.site/php/bfgd.php?id=065
+#EXTINF:-1 tvg-name="CCTV-6" group-title="央视频道",CCTV-6 [源3] [极速]
+http://8.138.7.223/tv/1905.php?id=LIVE3YPYZ30E7V1R0
 #EXTINF:-1 tvg-name="CCTV-7" group-title="央视频道",CCTV-7 [源1] [极速]
 https://cc06.tv12.xyz/8.m3u8
 #EXTINF:-1 tvg-name="CCTV-7" group-title="央视频道",CCTV-7 [源2] [极速]
@@ -79,9 +63,11 @@ http://zqh2333.top:2222/rtp/239.93.24.92:5140
 #EXTINF:-1 tvg-name="安徽影视" group-title="卫视频道",安徽影视 [极速]
 http://ygbh.site/php/bfgd.php?id=096
 #EXTINF:-1 tvg-name="第一财经" group-title="卫视频道",第一财经 [源1] [极速]
-http://satellitepull.cnr.cn/live/wx32dycjgb/playlist.m3u8
-#EXTINF:-1 tvg-name="第一财经" group-title="卫视频道",第一财经 [源2] [极速]
 http://8.138.7.223/tv/shtv.php?id=dycj
+#EXTINF:-1 tvg-name="第一财经" group-title="卫视频道",第一财经 [源2] [极速]
+http://satellitepull.cnr.cn/live/wx32dycjgb/playlist.m3u8
+#EXTINF:-1 tvg-name="第一财经" group-title="卫视频道",第一财经 [源3] [极速]
+http://a1live.livecdn.yicai.com/live/radio_tv.m3u8
 #EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道 [极速]
 http://www.lizhinas.top:1009/rtp/239.252.220.179:5140
 #EXTINF:-1 tvg-name="广东卫视" group-title="卫视频道",广东卫视 [极速]
@@ -90,10 +76,8 @@ http://ygbh.site/php/bfgd.php?id=092
 http://ygbh.site/php/bfgd.php?id=094
 #EXTINF:-1 tvg-name="湖南卫视" group-title="卫视频道",湖南卫视 [极速]
 http://ygbh.site/php/bfgd.php?id=086
-#EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [源1] [极速]
+#EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [极速]
 http://ygbh.site/php/bfgd.php?id=083
-#EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [源2] [极速]
-http://satellitepull.cnr.cn/live/wxbtv/playlist.m3u8
 #EXTINF:-1 tvg-name="湖北卫视" group-title="卫视频道",湖北卫视 [极速]
 http://ygbh.site/php/bfgd.php?id=102
 #EXTINF:-1 tvg-name="黑龙江卫视" group-title="卫视频道",黑龙江卫视 [极速]
@@ -121,9 +105,9 @@ http://ygbh.site/php/bfgd.php?id=108
 #EXTINF:-1 tvg-name="河南卫视" group-title="卫视频道",河南卫视 [源1] [极速]
 http://223.167.245.215:8001/rtp/239.45.0.3:5140
 #EXTINF:-1 tvg-name="河南卫视" group-title="卫视频道",河南卫视 [源2] [极速]
-http://1.94.31.214/php/hntv.php?id=hnws
-#EXTINF:-1 tvg-name="河南卫视" group-title="卫视频道",河南卫视 [源3] [极速]
 http://ygbh.site/php/bfgd.php?id=104
+#EXTINF:-1 tvg-name="河南卫视" group-title="卫视频道",河南卫视 [源3] [极速]
+http://1.94.31.214/php/hntv.php?id=hnws
 #EXTINF:-1 tvg-name="吉林卫视" group-title="卫视频道",吉林卫视 [极速]
 http://ygbh.site/php/bfgd.php?id=097
 #EXTINF:-1 tvg-name="江苏卫视" group-title="卫视频道",江苏卫视 [极速]
@@ -150,10 +134,14 @@ http://ygbh.site/php/bfgd.php?id=114
 http://ygbh.site/php/bfgd.php?id=103
 #EXTINF:-1 tvg-name="深圳卫视" group-title="卫视频道",深圳卫视 [极速]
 http://ygbh.site/php/bfgd.php?id=100
+#EXTINF:-1 tvg-name="三沙卫视" group-title="卫视频道",三沙卫视 [极速]
+http://nn.7x9d.cn/地方台8563/海南.php?id=ssws
 #EXTINF:-1 tvg-name="天津卫视" group-title="卫视频道",天津卫视 [极速]
 http://ygbh.site/php/bfgd.php?id=084
-#EXTINF:-1 tvg-name="西藏卫视" group-title="卫视频道",西藏卫视 [极速]
+#EXTINF:-1 tvg-name="西藏卫视" group-title="卫视频道",西藏卫视 [源1] [极速]
 http://ygbh.site/php/bfgd.php?id=121
+#EXTINF:-1 tvg-name="西藏卫视" group-title="卫视频道",西藏卫视 [源2] [极速]
+http://php.jdshipin.com:8880/xztv.php?id=ws
 #EXTINF:-1 tvg-name="新疆卫视" group-title="卫视频道",新疆卫视 [极速]
 http://ygbh.site/php/bfgd.php?id=150
 #EXTINF:-1 tvg-name="云南卫视" group-title="卫视频道",云南卫视 [源1] [极速]
@@ -162,24 +150,26 @@ http://223.167.245.215:8001/rtp/239.45.0.4:5140
 http://218.8.87.96:4000/rtp/229.58.190.176:5000
 #EXTINF:-1 tvg-name="云南卫视" group-title="卫视频道",云南卫视 [源3] [极速]
 http://ygbh.site/php/bfgd.php?id=115
-#EXTINF:-1 tvg-name="云南卫视" group-title="卫视频道",云南卫视 [源4] [极速]
-http://nn.7x9d.cn/xzc2.php?ua=TW96aWxsYS81LjAgKFdpbmRvd3MgTlQgNi4xOyBXaW42NDsgeDY0KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvMTA2LjAuMC4wIFNhZmFyaS81MzcuMzY=&hls=aHR0cDovL3d3dy5kc2suY2MvcGhwL3N4Z2QucGhwP2lkPXlud3M=
 #EXTINF:-1 tvg-name="CHC家庭影院" group-title="卫视频道",CHC家庭影院 [极速]
 http://ygbh.site/php/bfgd.php?id=289
 #EXTINF:-1 tvg-name="古天乐电影" group-title="卫视频道",古天乐电影 [极速]
 http://iptv.jxpan.vip:18888/aio/huya/29982675
+#EXTINF:-1 tvg-name="周星驰电影" group-title="卫视频道",周星驰电影 [极速]
+http://iptv.jxpan.vip:18888/aio/huya/11342412
 #EXTINF:-1 tvg-name="刘德华电影" group-title="卫视频道",刘德华电影 [极速]
 http://iptv.jxpan.vip:18888/aio/huya/11342424
 #EXTINF:-1 tvg-name="李连杰电影" group-title="卫视频道",李连杰电影 [极速]
-http://iptv.jxpan.vip:18888/aio/huya/30080229
+http://iptv.jxpan.vip:18888/aio/huya/11342390
+#EXTINF:-1 tvg-name="林正英电影" group-title="卫视频道",林正英电影 [极速]
+http://iptv.jxpan.vip:18888/aio/huya/11342421
 #EXTINF:-1 tvg-name="成龙电影" group-title="卫视频道",成龙电影 [极速]
 http://iptv.jxpan.vip:18888/aio/huya/11342386
 #EXTINF:-1 tvg-name="枪战电影" group-title="卫视频道",枪战电影 [极速]
-http://iptv.jxpan.vip:18888/aio/huya/21059585
+http://iptv.jxpan.vip:18888/aio/huya/21059579
 #EXTINF:-1 tvg-name="功夫电影" group-title="卫视频道",功夫电影 [极速]
 http://iptv.jxpan.vip:18888/aio/huya/11352941
 #EXTINF:-1 tvg-name="谍战电影" group-title="卫视频道",谍战电影 [极速]
-http://iptv.jxpan.vip:18888/aio/huya/21059585
+http://iptv.jxpan.vip:18888/aio/huya/21059579
 #EXTINF:-1 tvg-name="武侠电影" group-title="卫视频道",武侠电影 [极速]
 http://iptv.jxpan.vip:18888/aio/huya/11342427
 #EXTINF:-1 tvg-name="金庸武侠" group-title="卫视频道",金庸武侠 [极速]
