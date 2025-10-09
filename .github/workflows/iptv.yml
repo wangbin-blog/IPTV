@@ -2,7 +2,7 @@ name: Update
 
 on:
   schedule:
-    - cron: 05,12,17 * * * *
+    - cron: '0 5,12,17 * * *'  # UTC时间5,12,17点（北京时间13,20,01点）
   workflow_dispatch:
 
 permissions:
@@ -16,57 +16,108 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout repository with full history
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史记录
 
-    - name: Get time
-      run: echo "DATE=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+    - name: Get Beijing time
+      run: echo "UPDATE_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.x'
+        python-version: '3.10'
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         sudo apt-get update && sudo apt-get install -y ffmpeg
-        
-    - name: Run script
+
+    - name: Run IPTV script
       run: |
         python iptv.py
-        
-    - name: Update time
+        # 确保脚本生成所需文件
+        if [ ! -f "iptv.txt" ]; then echo "Error: iptv.txt not generated" && exit 1; fi
+        if [ ! -f "iptv.m3u" ]; then echo "Error: iptv.m3u not generated" && exit 1; fi
+
+    - name: Generate updated README
       run: |
-        echo "## ✨于 $DATE 更新
-        **🎉最新可用IPTV源，觉得好用请点个STAR吧！**
+        # 统计频道数量
+        CCTV_COUNT=$(grep -c "CCTV-" iptv.txt || true)
+        WS_COUNT=$(grep -v "CCTV-" iptv.txt | grep -c ",http" || true)
+        MOVIE_COUNT=$(grep -E "(电影|CHC|武侠|猫和老鼠)" iptv.txt | grep -c ",http" || true)
         
-        https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.txt
+        echo "# 📺 IPTV直播源自动更新
         
-        https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.m3u
+## ✨ 最后更新于: $UPDATE_TIME
+**🎉 最新可用IPTV源，觉得好用请点个STAR支持！**
 
-        **🎉最新可用IPTV源，觉得好用请点个STAR吧！**
-        " > README.md
-    - name: List files in workspace
-      run: ls -la
+### 📊 频道统计
+- **央视频道**: $CCTV_COUNT 个
+- **卫视频道**: $WS_COUNT 个  
+- **电影专题**: $MOVIE_COUNT 个
 
-    - name: Git status
-      run: git status
+### 📁 文件说明
+1. **iptv.txt** - 简洁CSV格式，兼容各种播放器
+2. **iptv.m3u** - 标准M3U格式，包含完整元数据
+
+### ⚡ 使用说明
+直接将链接复制到支持IPTV的播放器中使用：
+- 支持：VLC、PotPlayer、Kodi等
+- 格式：频道名称,直播流地址
+
+### 🔄 更新频率
+每日自动更新3次（UTC 5:00, 12:00, 17:00）
+
+### ⚠️ 免责声明
+本资源仅供学习交流使用，请勿用于商业用途
+
+**💖 如果对您有帮助，请给个Star支持一下！**
+" > README.md
 
     - name: Configure Git
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
-    - name: Commit and Push changes
+
+    - name: Commit changes
       run: |
-        git add $(pwd)/iptv.txt
-        git add $(pwd)/iptv.m3u
-        git add $(pwd)/README.md
-        git commit -m "Update on $DATE" --allow-empty
-        git push origin main
-    - name: Upload streams file
+        # 先拉取最新更改避免冲突
+        git pull origin main --rebase --autostash
+        
+        # 添加所有更改的文件
+        git add iptv.txt iptv.m3u README.md
+        
+        # 检查是否有更改需要提交
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "🔄 IPTV自动更新 - $UPDATE_TIME"
+        fi
+
+    - name: Push changes safely
+      run: |
+        # 尝试推送，如果失败则强制推送（在自动更新场景下安全）
+        if ! git push origin main; then
+          echo "Push failed, pulling latest changes and retrying..."
+          git pull origin main --rebase
+          git push origin main
+        fi
+
+    - name: Verify push success
+      run: |
+        echo "✅ 更新完成于 $UPDATE_TIME"
+        echo "📊 文件统计:"
+        ls -la iptv.*
+        wc -l iptv.txt
+
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: iptv
-        path: iptv.txt
+        name: iptv-files
+        path: |
+          iptv.txt
+          iptv.m3u
+          README.md
