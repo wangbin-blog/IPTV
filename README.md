@@ -1,19 +1,16 @@
-## ✨于 2025-10-09 04:26:33 更新
-**🎉最新可用IPTV源，觉得好用请点个STAR吧！**
+# 📺 IPTV源更新
 
-https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.txt
+## 最近更新
+**更新时间**: 2025-10-09 10:45:28
 
-https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.m3u
+## 下载链接
+- [IPTV文本格式](https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.txt)
+- [IPTV M3U格式](https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.m3u)
 
-**🎉最新可用IPTV源，觉得好用请点个STAR吧！**
+## 使用说明
+将上述链接添加到您的IPTV播放器中使用。
 
-1 本仓库仅供学习使用，请尊重版权，请勿利用此仓库从事商业行为及非法用途!
+## 自动更新
+此仓库每天自动更新多次，确保源的可用性。
 
-2 使用本仓库的过程中可能会产生版权数据。对于这些版权数据，本仓库不拥有它们的所有权。为了避免侵权，使用者务必在 24小时内清除使用本仓库的过程中所产生的版权数据。
-
-3 由于使用本仓库产生的包括由于本协议或由于使用或无法使用本仓库而引起的任何性质的任何直接、间接、特殊、偶然或结果性损害（包括但不限于因商誉损失、停工、计算机故障或故障引起的损害赔偿，或任何及所有其他商业损害或损失）由使用者负责。
-
-4 禁止在违反当地法律法规的情况下使用本仓库。 对于使用者在明知或不知当地法律法规不允许的情况下使用本仓库所造成的任何违法违规行为由使用者承担，本仓库不承担由此造成的任何直接、间接、特殊、偶然或结果性责任。
-
-5 如果官方平台觉得本仓库不妥，可联系本仓库更改或移除。
-
+⭐ 如果对您有帮助，请给个Star！
