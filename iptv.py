@@ -130,9 +130,8 @@ class ConfigManager:
         
         # 源URL配置 - 增加更多源以提高覆盖率
         self.source_urls: List[str] = [
-            "https://live.zbds.top/tv/iptv4.txt",
             "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
-            "https://raw.githubusercontent.com/Guovin/iptv-database/master/result.txt",  
+            "https://raw.githubusercontent.com/Guovin/iptv-api/gd/output/ipv4/result.m3u",  
             "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u",
             "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
             "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
