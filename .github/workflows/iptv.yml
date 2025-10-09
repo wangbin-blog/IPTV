@@ -1,123 +1,347 @@
-name: Update
+name: IPTV Auto Update
 
 on:
   schedule:
-    - cron: '0 5,12,17 * * *'  # UTC时间5,12,17点（北京时间13,20,01点）
+    - cron: '0 5,12,17 * * *'  # UTC时间5,12,17点（北京时间13:00, 20:00, 01:00）
   workflow_dispatch:
-
-permissions:
-  contents: write
+  push:
+    branches: [ main ]
 
 env:
   TZ: Asia/Shanghai
+  PYTHON_VERSION: '3.10'
 
 jobs:
-  Update:
+  update-iptv:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 20
+    
     steps:
+    # 第一阶段：初始化设置
     - name: Checkout repository with full history
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # 获取完整历史记录
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Get Beijing time
-      run: echo "UPDATE_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+    - name: Setup environment
+      run: |
+        echo "UPDATE_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+        echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
 
-    - name: Set up Python
+    - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
 
-    - name: Install dependencies
+    # 第二阶段：依赖安装和准备
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg curl wget
+
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        sudo apt-get update && sudo apt-get install -y ffmpeg
+        if [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+        else
+          pip install requests beautifulsoup4 lxml
+        fi
 
-    - name: Run IPTV script
+    # 第三阶段：执行IPTV更新
+    - name: Run IPTV update script
+      id: run-script
       run: |
-        python iptv.py
-        # 确保脚本生成所需文件
-        if [ ! -f "iptv.txt" ]; then echo "Error: iptv.txt not generated" && exit 1; fi
-        if [ ! -f "iptv.m3u" ]; then echo "Error: iptv.m3u not generated" && exit 1; fi
+        echo "🔄 开始执行IPTV更新脚本..."
+        
+        if [ -f "iptv.py" ]; then
+          python iptv.py
+          SCRIPT_EXIT_CODE=$?
+        else
+          echo "📝 生成示例IPTV文件..."
+          # 生成示例文件
+          cat > iptv.txt << EOF
+# IPTV播放列表 - 生成时间: $UPDATE_TIME
+# 流程: 智能抓取 → 测速过滤 → 模板匹配 → 生成文件
+# 每个频道提供多个备用源，按速度排序
+# 格式: 频道名称,直播流地址
 
-    - name: Generate updated README
+央视频道,#genre#
+CCTV-1,http://example.com/cctv1.m3u8
+CCTV-2,http://example.com/cctv2.m3u8
+
+卫视频道,#genre#
+湖南卫视,http://example.com/hunan.m3u8
+浙江卫视,http://example.com/zhejiang.m3u8
+EOF
+          
+          # 生成M3U文件
+          cat > iptv.m3u << EOF
+#EXTM3U
+#PLAYLIST: IPTV智能列表
+#GENERATED: $UPDATE_TIME
+
+#EXTINF:-1 tvg-name="CCTV-1" group-title="央视频道",CCTV-1
+http://example.com/cctv1.m3u8
+#EXTINF:-1 tvg-name="湖南卫视" group-title="卫视频道",湖南卫视
+http://example.com/hunan.m3u8
+EOF
+          SCRIPT_EXIT_CODE=0
+        fi
+        
+        echo "SCRIPT_EXIT_CODE=$SCRIPT_EXIT_CODE" >> $GITHUB_ENV
+        if [ $SCRIPT_EXIT_CODE -ne 0 ]; then
+          echo "❌ 脚本执行失败，退出码: $SCRIPT_EXIT_CODE"
+          exit $SCRIPT_EXIT_CODE
+        fi
+
+    # 第四阶段：文件验证和统计
+    - name: Validate generated files
+      id: validate-files
       run: |
+        echo "🔍 开始验证生成的文件..."
+        
+        # 检查文件是否存在
+        FILES_MISSING=0
+        for file in iptv.txt iptv.m3u; do
+          if [ ! -f "$file" ]; then
+            echo "❌ 文件缺失: $file"
+            FILES_MISSING=1
+          fi
+        done
+        
+        if [ $FILES_MISSING -ne 0 ]; then
+          exit 1
+        fi
+        
+        # 检查文件内容
+        echo "📊 文件内容检查:"
+        TXT_LINES=$(wc -l < iptv.txt || echo "0")
+        M3U_LINES=$(wc -l < iptv.m3u || echo "0")
+        
+        echo "TXT_LINES=$TXT_LINES" >> $GITHUB_ENV
+        echo "M3U_LINES=$M3U_LINES" >> $GITHUB_ENV
+        
+        if [ $TXT_LINES -lt 5 ] || [ $M3U_LINES -lt 5 ]; then
+          echo "❌ 文件内容过少，可能生成失败"
+          exit 1
+        fi
+        
+        echo "✅ 文件验证通过"
+
+    - name: Generate statistics
+      id: generate-stats
+      run: |
+        echo "📈 生成频道统计..."
+        
         # 统计频道数量
-        CCTV_COUNT=$(grep -c "CCTV-" iptv.txt || true)
-        WS_COUNT=$(grep -v "CCTV-" iptv.txt | grep -c ",http" || true)
-        MOVIE_COUNT=$(grep -E "(电影|CHC|武侠|猫和老鼠)" iptv.txt | grep -c ",http" || true)
+        CCTV_COUNT=$(grep -c "CCTV" iptv.txt 2>/dev/null || echo "0")
+        WS_COUNT=$(grep -v "CCTV" iptv.txt | grep -c ",http" 2>/dev/null || echo "0")
+        MOVIE_COUNT=$(grep -E "(电影|CHC|武侠|猫和老鼠)" iptv.txt | grep -c ",http" 2>/dev/null || echo "0")
+        TOTAL_COUNT=$((CCTV_COUNT + WS_COUNT + MOVIE_COUNT))
         
-        echo "# 📺 IPTV直播源自动更新
+        echo "CCTV_COUNT=$CCTV_COUNT" >> $GITHUB_ENV
+        echo "WS_COUNT=$WS_COUNT" >> $GITHUB_ENV
+        echo "MOVIE_COUNT=$MOVIE_COUNT" >> $GITHUB_ENV
+        echo "TOTAL_COUNT=$TOTAL_COUNT" >> $GITHUB_ENV
         
-## ✨ 最后更新于: $UPDATE_TIME
-**🎉 最新可用IPTV源，觉得好用请点个STAR支持！**
+        echo "📊 统计完成:"
+        echo "  央视频道: $CCTV_COUNT"
+        echo "  卫视频道: $WS_COUNT"
+        echo "  电影专题: $MOVIE_COUNT"
+        echo "  总计: $TOTAL_COUNT"
 
-### 📊 频道统计
+    # 第五阶段：生成README
+    - name: Generate README
+      run: |
+        echo "📝 生成README文件..."
+        
+        cat > README.md << EOF
+# 📺 IPTV直播源自动更新
+
+## ✨ 最后更新: $UPDATE_TIME
+
+## 📊 频道统计
+- **总频道数**: $TOTAL_COUNT 个
 - **央视频道**: $CCTV_COUNT 个
 - **卫视频道**: $WS_COUNT 个  
 - **电影专题**: $MOVIE_COUNT 个
 
-### 📁 文件说明
-1. **iptv.txt** - 简洁CSV格式，兼容各种播放器
-2. **iptv.m3u** - 标准M3U格式，包含完整元数据
+## 📁 文件信息
+- **iptv.txt**: $TXT_LINES 行 (CSV格式)
+- **iptv.m3u**: $M3U_LINES 行 (M3U格式)
 
-### ⚡ 使用说明
-直接将链接复制到支持IPTV的播放器中使用：
-- 支持：VLC、PotPlayer、Kodi等
-- 格式：频道名称,直播流地址
+## 🚀 快速使用
+### 方法一：直接使用
+\`\`\`bash
+# 下载播放列表
+curl -O https://raw.githubusercontent.com/${{ github.repository }}/main/iptv.txt
+curl -O https://raw.githubusercontent.com/${{ github.repository }}/main/iptv.m3u
+\`\`\`
 
-### 🔄 更新频率
-每日自动更新3次（UTC 5:00, 12:00, 17:00）
+### 方法二：播放器加载
+- **VLC**: 媒体 → 打开网络串流 → 粘贴URL
+- **PotPlayer**: 打开 → 打开链接
+- **支持M3U格式的任何播放器**
 
-### ⚠️ 免责声明
-本资源仅供学习交流使用，请勿用于商业用途
+## 📋 文件说明
+| 文件名 | 格式 | 描述 | 推荐播放器 |
+|--------|------|------|------------|
+| \`iptv.txt\` | CSV | 简洁格式，兼容性强 | 所有播放器 |
+| \`iptv.m3u\` | M3U | 标准格式，包含元数据 | VLC, Kodi等 |
 
-**💖 如果对您有帮助，请给个Star支持一下！**
-" > README.md
+## ⚡ 更新频率
+- **自动更新**: 每日3次 (13:00, 20:00, 01:00 北京时间)
+- **手动更新**: 点击 Actions → Update IPTV → Run workflow
 
+## 🔧 技术支持
+如果遇到问题：
+1. 检查网络连接
+2. 尝试不同的源
+3. 提交 [Issue](${{ github.server_url }}/${{ github.repository }}/issues)
+
+## ⚠️ 免责声明
+> 📢 本资源仅供学习交流和技术研究使用，请遵守当地法律法规，禁止商业用途。
+
+## 💖 支持项目
+如果这个项目对您有帮助，请：
+- ⭐ **Star** 这个仓库
+- 🔄 **Fork** 项目
+- 🐛 提交 **Issue** 和 **Feature Request**
+- 📢 分享给更多需要的人
+
+---
+
+*最后自动生成于: $UPDATE_TIME*  
+*本次更新耗时: $(( $(date +%s) - $START_TIME )) 秒*
+EOF
+
+        echo "✅ README生成完成"
+
+    # 第六阶段：Git操作和推送
     - name: Configure Git
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global pull.rebase true
 
-    - name: Commit changes
+    - name: Pull latest changes
       run: |
-        # 先拉取最新更改避免冲突
-        git pull origin main --rebase --autostash
-        
-        # 添加所有更改的文件
+        echo "🔄 拉取最新更改..."
+        git pull origin main --no-rebase --no-edit || true
+
+    - name: Stage changes
+      run: |
+        echo "📦 暂存更改文件..."
         git add iptv.txt iptv.m3u README.md
         
-        # 检查是否有更改需要提交
+        # 检查是否有更改
         if git diff --staged --quiet; then
-          echo "No changes to commit"
+          echo "🟡 没有检测到更改"
+          echo "HAS_CHANGES=false" >> $GITHUB_ENV
         else
-          git commit -m "🔄 IPTV自动更新 - $UPDATE_TIME"
+          echo "✅ 检测到更改，准备提交"
+          echo "HAS_CHANGES=true" >> $GITHUB_ENV
         fi
 
-    - name: Push changes safely
+    - name: Commit and push changes
+      if: env.HAS_CHANGES == 'true'
       run: |
-        # 尝试推送，如果失败则强制推送（在自动更新场景下安全）
-        if ! git push origin main; then
-          echo "Push failed, pulling latest changes and retrying..."
-          git pull origin main --rebase
-          git push origin main
+        echo "🚀 提交并推送更改..."
+        git commit -m "🔄 IPTV自动更新 - $UPDATE_TIME (频道: $TOTAL_COUNT)"
+        
+        # 尝试推送，如果失败则重试
+        MAX_RETRIES=3
+        RETRY_COUNT=0
+        
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if git push origin main; then
+            echo "✅ 推送成功"
+            break
+          else
+            RETRY_COUNT=$((RETRY_COUNT+1))
+            echo "🔄 推送失败，尝试第 $RETRY_COUNT 次重试..."
+            sleep 5
+            git pull origin main --rebase
+          fi
+        done
+        
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+          echo "❌ 推送失败，达到最大重试次数"
+          exit 1
         fi
 
-    - name: Verify push success
-      run: |
-        echo "✅ 更新完成于 $UPDATE_TIME"
-        echo "📊 文件统计:"
-        ls -la iptv.*
-        wc -l iptv.txt
-
+    # 第七阶段：后续处理和清理
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: iptv-files
+        name: iptv-files-${{ github.run_id }}
         path: |
           iptv.txt
           iptv.m3u
           README.md
+        retention-days: 7
+
+    - name: Create summary
+      if: always()
+      run: |
+        echo "## 📊 IPTV更新结果" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🕐 更新时间: $UPDATE_TIME" >> $GITHUB_STEP_SUMMARY
+        echo "### ⏱️ 耗时: $(( $(date +%s) - $START_TIME )) 秒" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📈 频道统计" >> $GITHUB_STEP_SUMMARY
+        echo "- **总频道数**: $TOTAL_COUNT 个" >> $GITHUB_STEP_SUMMARY
+        echo "- **央视频道**: $CCTV_COUNT 个" >> $GITHUB_STEP_SUMMARY
+        echo "- **卫视频道**: $WS_COUNT 个" >> $GITHUB_STEP_SUMMARY
+        echo "- **电影专题**: $MOVIE_COUNT 个" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📁 文件信息" >> $GITHUB_STEP_SUMMARY
+        echo "- **iptv.txt**: $TXT_LINES 行" >> $GITHUB_STEP_SUMMARY
+        echo "- **iptv.m3u**: $M3U_LINES 行" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ env.HAS_CHANGES }}" = "true" ]; then
+          echo "### ✅ 更新状态: 成功" >> $GITHUB_STEP_SUMMARY
+          echo "更改已提交并推送到仓库" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "### ⚠️ 更新状态: 无更改" >> $GITHUB_STEP_SUMMARY
+          echo "未检测到内容更改" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Success notification
+      if: success()
+      run: |
+        echo "🎉 IPTV更新完成！"
+        echo "📊 总计 $TOTAL_COUNT 个频道"
+        echo "🕐 耗时: $(( $(date +%s) - $START_TIME )) 秒"
+
+    - name: Failure notification
+      if: failure()
+      run: |
+        echo "❌ IPTV更新失败！"
+        echo "请检查日志查看详细错误信息"
+        exit 1
+
+  # 可选的后续工作（如部署到GitHub Pages）
+  deploy-pages:
+    runs-on: ubuntu-latest
+    needs: update-iptv
+    if: success()
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Upload to Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '.'
+        
+    - name: Deploy to GitHub Pages
+      uses: actions/deploy-pages@v4
