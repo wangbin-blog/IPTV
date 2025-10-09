@@ -1,9 +1,16 @@
-name: IPTV Update
+name: Update IPTV
 
 on:
   schedule:
-    - cron: '0 5,12,17 * * *'
+    - cron: '05,12,17 * * * *'  # 更清晰的cron表达式
   workflow_dispatch:
+  push:  # 添加push触发，便于测试
+    paths:
+      - 'iptv.py'
+      - 'requirements.txt'
+
+permissions:
+  contents: write
 
 env:
   TZ: Asia/Shanghai
@@ -11,83 +18,68 @@ env:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Setup environment
-      run: echo "UPDATE_TIME=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+      run: echo "DATE=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
 
-    - name: Setup Python
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.x'
+        cache: 'pip'  # 添加pip缓存
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y ffmpeg
-        pip install requests beautifulsoup4
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        sudo apt-get update && sudo apt-get install -y ffmpeg
 
-    - name: Run IPTV script
-      run: |
-        if [ -f "iptv.py" ]; then
-          python iptv.py
-        else
-          echo "生成基础IPTV文件"
-          # 生成基础iptv.txt
-          cat > iptv.txt << 'EOF'
-        fi
+    - name: Generate IPTV sources
+      run: python iptv.py
 
-    - name: Validate files
+    - name: Update documentation
       run: |
-        for file in iptv.txt iptv.m3u; do
-          if [ ! -f "$file" ]; then
-            echo "错误: $file 不存在"
-            exit 1
-          fi
-        done
-
-    - name: Generate README
-      run: |
-        CCTV_COUNT=$(grep -c "CCTV" iptv.txt 2>/dev/null || echo "0")
-        TOTAL_COUNT=$(grep -c ",http" iptv.txt 2>/dev/null || echo "0")
+        cat << EOF > README.md
+        # 📺 IPTV源更新
         
-        cat > README.md << EOF
-# IPTV直播源
-
-更新时间: $UPDATE_TIME
-
-频道统计:
-- 总频道: $TOTAL_COUNT 个
-- 央视: $CCTV_COUNT 个
-
-文件列表:
-- iptv.txt (CSV格式)
-- iptv.m3u (M3U格式)
-
-更新频率: 每日3次
-EOF
+        ## 最近更新
+        **更新时间**: $DATE
+        
+        ## 下载链接
+        - [IPTV文本格式](https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.txt)
+        - [IPTV M3U格式](https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.m3u)
+        
+        ## 使用说明
+        将上述链接添加到您的IPTV播放器中使用。
+        
+        ## 自动更新
+        此仓库每天自动更新多次，确保源的可用性。
+        
+        ⭐ 如果对您有帮助，请给个Star！
+        EOF
 
     - name: Configure Git
       run: |
-        git config user.name "github-actions"
-        git config user.email "github-actions@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Commit changes
+    - name: Commit and push changes
       run: |
         git add iptv.txt iptv.m3u README.md
-        if ! git diff --staged --quiet; then
-          git commit -m "更新IPTV源 - $UPDATE_TIME"
-          git push
-        fi
+        git diff --staged --quiet || git commit -m "🔄 自动更新于 $DATE"
+        git push origin main
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: iptv-files
+        name: iptv-sources
         path: |
           iptv.txt
           iptv.m3u
+        retention-days: 7
