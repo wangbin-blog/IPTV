@@ -69,7 +69,7 @@ jobs:
 # 格式: 频道名称,直播流地址
 
 央视频道,#genre#
-CCTV-1,http://example.com/cctv1.m3u8
+
 CCTV-2,http://example.com/cctv2.m3u8
 
 卫视频道,#genre#
