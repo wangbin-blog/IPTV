@@ -133,7 +133,7 @@ class ConfigManager:
             "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
             "https://ghfast.top/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/interface.txt",
             "https://ghfast.top/raw.githubusercontent.com/hjdhnx/hipy-sniffer/refs/heads/main/static/lives/lives.txt",
-            "https://ghfast.top/raw.githubusercontent.com/Guovin/iptv-api/gd/output/ipv4/result.m3u",  
+            "https://raw.githubusercontent.com/Guovin/iptv-api/gd/output/ipv4/result.m3u",  
             "https://ghfast.top/raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u",
             "https://ghfast.top/raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
             "https://ghfast.top/raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
