@@ -1,72 +1,192 @@
-name: Update IPTV Playlist
+name: Update IPTV
 
 on:
   schedule:
-    # 每天UTC时间18:00运行（北京时间第二天02:00）
-    - cron: '0 18 * * *'
-  workflow_dispatch:  # 允许手动触发
+    - cron: '0 5,12,17 * * *'  # 每天 UTC 时间 05:00, 12:00, 17:00 执行
+  workflow_dispatch:
   push:
-    branches: [ main ]
     paths:
       - 'iptv.py'
-      - 'demo.txt'
-      - '.github/workflows/iptv.yml'
+      - 'requirements.txt'
+
+permissions:
+  contents: write
+
+env:
+  TZ: Asia/Shanghai
+  PYTHON_VERSION: '3.10'
 
 jobs:
   update-iptv:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 30
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Set up Python
-      uses: actions/setup-python@v4
+        fetch-depth: 0
+
+    - name: Setup timezone
+      uses: zcong1993/setup-timezone@master
       with:
-        python-version: '3.9'
+        timezone: Asia/Shanghai
+
+    - name: Get current time
+      id: time
+      uses: josStorer/get-current-time@v2.0.2
+      with:
+        format: 'YYYY-MM-DD HH:mm:ss'
+        utcOffset: '+08:00'
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
         cache: 'pip'
-        
-    - name: Install dependencies
+        cache-dependency-path: requirements.txt
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install requests pandas
-        
-    - name: Run IPTV Manager
+        pip install -r requirements.txt
+
+    - name: Run IPTV update script
+      id: run-script
       run: |
+        echo "Running IPTV update script..."
         python iptv.py
-      env:
-        IPTV_MAX_WORKERS: 20
-        IPTV_TIMEOUT: 15
         
+        # Check if files were created
+        if [ ! -f "iptv.txt" ] || [ ! -f "iptv.m3u" ]; then
+          echo "Error: IPTV files were not generated"
+          exit 1
+        fi
+        
+        # Count lines in generated files
+        LINES_TXT=$(wc -l < iptv.txt || echo "0")
+        LINES_M3U=$(wc -l < iptv.m3u || echo "0")
+        echo "lines_txt=$LINES_TXT" >> $GITHUB_OUTPUT
+        echo "lines_m3u=$LINES_M3U" >> $GITHUB_OUTPUT
+
+    - name: Validate generated files
+      run: |
+        echo "Validating generated files..."
+        if [ -s "iptv.txt" ]; then
+          echo "✓ iptv.txt is not empty"
+        else
+          echo "✗ iptv.txt is empty"
+          exit 1
+        fi
+        
+        if [ -s "iptv.m3u" ]; then
+          echo "✓ iptv.m3u is not empty"
+        else
+          echo "✗ iptv.m3u is empty"
+          exit 1
+        fi
+
+    - name: Update README
+      run: |
+        cat > README.md << 'EOF'
+# IPTV 直播源仓库
+
+## 📢 免责声明
+
+1. 本仓库仅供学习使用，请尊重版权，请勿利用此仓库从事商业行为及非法用途!
+
+2. 使用本仓库的过程中可能会产生版权数据。对于这些版权数据，本仓库不拥有它们的所有权。为了避免侵权，使用者务必在 24 小时内清除使用本仓库的过程中所产生的版权数据。
+
+3. 由于使用本仓库产生的包括由于本协议或由于使用或无法使用本仓库而引起的任何性质的任何直接、间接、特殊、偶然或结果性损害由使用者负责。
+
+4. 禁止在违反当地法律法规的情况下使用本仓库。对于使用者在明知或不知当地法律法规不允许的情况下使用本仓库所造成的任何违法违规行为由使用者承担。
+
+5. 如果官方平台觉得本仓库不妥，可联系本仓库更改或移除。
+
+## 📊 仓库状态
+
+- **最后更新**: ${{ steps.time.outputs.formattedTime }} (北京时间)
+- **直播源数量**: 
+  - iptv.txt: ${{ steps.run-script.outputs.lines_txt }} 行
+  - iptv.m3u: ${{ steps.run-script.outputs.lines_m3u }} 行
+
+## 📥 下载链接
+
+### 直链下载
+- [iptv.txt](https://ghfast.top/raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/iptv.txt)
+- [iptv.m3u](https://ghfast.top/raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/iptv.m3u)
+
+### GitHub Raw 链接
+- [iptv.txt](https://raw.githubusercontent.com/${{ github.repository }}/main/iptv.txt)
+- [iptv.m3u](https://raw.githubusercontent.com/${{ github.repository }}/main/iptv.m3u)
+
+## ⚡ 使用说明
+
+1. **播放器使用**: 将上述链接复制到支持 M3U 格式的播放器中使用
+2. **文本格式**: iptv.txt 为纯文本格式，每行一个频道链接
+3. **M3U 格式**: iptv.m3u 为标准 M3U 播放列表格式
+
+## 🔄 自动更新
+
+本仓库每天自动更新三次（北京时间 13:00, 20:00, 次日 01:00）
+
+## ⭐ 支持项目
+
+如果这个项目对您有帮助，请给个 Star 支持一下！
+
+---
+*更新时间: ${{ steps.time.outputs.formattedTime }}*
+EOF
+
+    - name: Show workspace files
+      run: |
+        echo "Workspace files:"
+        ls -la
+        echo -e "\nFile sizes:"
+        du -h iptv.txt iptv.m3u README.md
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
     - name: Check for changes
-      id: check_changes
+      id: git-check
       run: |
-        git diff --name-only | grep -E "(iptv\.txt|iptv\.m3u)" && echo "changes=true" >> $GITHUB_OUTPUT || echo "changes=false" >> $GITHUB_OUTPUT
-        
-    - name: Commit and push if changes
-      if: steps.check_changes.outputs.changes == 'true'
+        git add iptv.txt iptv.m3u README.md
+        if git diff --staged --quiet; then
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No changes to commit"
+        else
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "Changes detected, preparing commit"
+        fi
+
+    - name: Commit and push changes
+      if: steps.git-check.outputs.changes == 'true'
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add iptv.txt iptv.m3u
-        git commit -m "🤖 Auto-update IPTV playlists - $(date +'%Y-%m-%d %H:%M')"
-        git push
+        git commit -m "🔄 Auto-update IPTV sources at ${{ steps.time.outputs.formattedTime }}
         
-    - name: Upload playlists as artifacts
+        - Updated IPTV sources
+        - iptv.txt: ${{ steps.run-script.outputs.lines_txt }} lines
+        - iptv.m3u: ${{ steps.run-script.outputs.lines_m3u }} lines"
+        git push origin main
+
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: iptv-playlists
+        name: iptv-sources
         path: |
           iptv.txt
           iptv.m3u
         retention-days: 7
-        
-    - name: Create release on tag
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          iptv.txt
-          iptv.m3u
+
+    - name: No changes notification
+      if: steps.git-check.outputs.changes == 'false'
+      run: |
+        echo "✅ No changes detected, workflow completed without commit"
