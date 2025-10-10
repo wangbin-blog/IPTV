@@ -1,6 +1,6 @@
 #EXTM3U
 #PLAYLIST: IPTV智能列表
-#GENERATED: 2025-10-10 17:00:34
+#GENERATED: 2025-10-10 17:52:29
 #PROCESS: 智能抓取→精准测速→模板匹配→生成文件
 #EXTINF:-1 tvg-name="CCTV-1" group-title="央视频道",CCTV-1 [快速]
 https://cc06.tv12.xyz/1.m3u8
@@ -12,11 +12,11 @@ https://cc06.tv12.xyz/3.m3u8
 https://cc06.tv12.xyz/4.m3u8
 #EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源1] [极速]
 https://cc06.tv12.xyz/6.m3u8
-#EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源2] [极速]
+#EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源2] [快速]
 https://cc06.tv12.xyz/5.m3u8
 #EXTINF:-1 tvg-name="CCTV-5+" group-title="央视频道",CCTV-5+ [源1] [极速]
 https://cc06.tv12.xyz/6.m3u8
-#EXTINF:-1 tvg-name="CCTV-5+" group-title="央视频道",CCTV-5+ [源2] [极速]
+#EXTINF:-1 tvg-name="CCTV-5+" group-title="央视频道",CCTV-5+ [源2] [快速]
 https://cc06.tv12.xyz/5.m3u8
 #EXTINF:-1 tvg-name="CCTV-6" group-title="央视频道",CCTV-6 [极速]
 https://cc06.tv12.xyz/7.m3u8
@@ -44,7 +44,7 @@ https://cc06.tv12.xyz/4.m3u8
 https://cc06.tv12.xyz/1.m3u8
 #EXTINF:-1 tvg-name="CCTV-15" group-title="央视频道",CCTV-15 [源1] [极速]
 https://cc06.tv12.xyz/6.m3u8
-#EXTINF:-1 tvg-name="CCTV-15" group-title="央视频道",CCTV-15 [源2] [极速]
+#EXTINF:-1 tvg-name="CCTV-15" group-title="央视频道",CCTV-15 [源2] [快速]
 https://cc06.tv12.xyz/5.m3u8
 #EXTINF:-1 tvg-name="CCTV-15" group-title="央视频道",CCTV-15 [源3] [快速]
 https://cc06.tv12.xyz/1.m3u8
@@ -58,19 +58,19 @@ https://cc06.tv12.xyz/8.m3u8
 https://cc06.tv12.xyz/1.m3u8
 #EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道 [源1] [极速]
 https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-HLS8/cctv4.m3u8
-#EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道 [源2] [快速]
+#EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道 [源2] [慢速]
 http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
 #EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [源1] [极速]
 http://player.cntv.cn/standard/live_HLSDRM20180919.swf?v=180.171.5.8.9.6.3.9&ChannelID=btv8&videoTVChannel=btv8&P2PChannelID=pd://cctv_p2p_hdbtv8&tai=btv8&VideoName=btv8&channelID=btv8
 #EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [源2] [极速]
 http://player.cntv.cn/standard/live_HLSDRM20180606.swf?ChannelID=btv3&P2PChannelID=pd://cctv_p2p_hdbtv3
 #EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源1] [快速]
-http://nn.7x9d.cn/地方台8563/海南.php?id=jjpd
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源2] [快速]
-http://nn.7x9d.cn/地方台8563/海南.php?id=ggpd
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源3] [快速]
 http://nn.7x9d.cn/地方台8563/海南.php?id=wlpd
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源4] [快速]
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源2] [快速]
+http://nn.7x9d.cn/地方台8563/海南.php?id=jjpd
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源3] [快速]
 http://nn.7x9d.cn/地方台8563/海南.php?id=xwpd
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源5] [快速]
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源4] [快速]
 http://nn.7x9d.cn/地方台8563/海南.php?id=sepd
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源5] [快速]
+http://nn.7x9d.cn/地方台8563/海南.php?id=ggpd
