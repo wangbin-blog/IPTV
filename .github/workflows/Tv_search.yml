@@ -84,17 +84,17 @@ jobs:
         # 创建示例频道文件（如果不存在）
         if [ ! -f "央视频道.txt" ]; then
           cat > "央视频道.txt" << EOF
-CCTV1
-CCTV2
-CCTV5
-CCTV6
-CCTV8
-湖南卫视
-浙江卫视
-东方卫视
-江苏卫视
-北京卫视
-EOF
+          CCTV1
+          CCTV2
+          CCTV5
+          CCTV6
+          CCTV8
+         湖南卫视
+         浙江卫视
+         东方卫视
+         江苏卫视
+         北京卫视
+        EOF
         fi
         
         # 根据输入参数创建其他频道文件
