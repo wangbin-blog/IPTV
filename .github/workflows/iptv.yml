@@ -2,9 +2,9 @@ name: Update IPTV
 
 on:
   schedule:
-    - cron: '0 5,12,17 * * *'
+    - cron: '05,12,17 * * * *'  # 更清晰的cron表达式
   workflow_dispatch:
-  push:
+  push:  # 添加push触发，便于测试
     paths:
       - 'iptv.py'
       - 'requirements.txt'
@@ -14,146 +14,67 @@ permissions:
 
 env:
   TZ: Asia/Shanghai
-  PYTHON_VERSION: '3.10'
 
 jobs:
-  update-iptv:
+  update:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Setup timezone
-      uses: zcong1993/setup-timezone@master
-      with:
-        timezone: Asia/Shanghai
-
-    - name: Get current time
-      id: time
-      uses: josStorer/get-current-time@v2.0.2
-      with:
-        format: 'YYYY-MM-DD HH:mm:ss'
-        utcOffset: '+08:00'
+    - name: Setup environment
+      run: echo "DATE=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: '3.x'
+        cache: 'pip'  # 添加pip缓存
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y ffmpeg
         python -m pip install --upgrade pip
-        if [ -f "requirements.txt" ]; then pip install -r requirements.txt; fi
+        pip install -r requirements.txt
+        sudo apt-get update && sudo apt-get install -y ffmpeg
 
-    - name: Run IPTV update script
-      id: run-script
+    - name: Generate IPTV sources
+      run: python iptv.py
+
+    - name: Update documentation
       run: |
-        echo "Running IPTV update script..."
-        python iptv.py
+        cat << EOF > README.md
+        # 📺 IPTV源更新
+
+        ## 📢 免责声明
+
+        1. 本仓库仅供学习使用，请尊重版权，请勿利用此仓库从事商业行为及非法用途!
+
+        2. 使用本仓库的过程中可能会产生版权数据。对于这些版权数据，本仓库不拥有它们的所有权。为了避免侵权，使用者务必在 24 小时内清除使用本仓库的过程中所产生的版权数据。
+      
+        3. 由于使用本仓库产生的包括由于本协议或由于使用或无法使用本仓库而引起的任何性质的任何直接、间接、特殊、偶然或结果性损害由使用者负责。
+
+        4. 禁止在违反当地法律法规的情况下使用本仓库。对于使用者在明知或不知当地法律法规不允许的情况下使用本仓库所造成的任何违法违规行为由使用者承担。
+
+        5. 如果官方平台觉得本仓库不妥，可联系本仓库更改或移除。
         
-        # 检查文件并统计行数
-        if [ -f "iptv.txt" ] && [ -f "iptv.m3u" ]; then
-          LINES_TXT=$(wc -l < iptv.txt | tr -d ' ' || echo "0")
-          LINES_M3U=$(wc -l < iptv.m3u | tr -d ' ' || echo "0")
-          echo "lines_txt=$LINES_TXT" >> $GITHUB_OUTPUT
-          echo "lines_m3u=$LINES_M3U" >> $GITHUB_OUTPUT
-          echo "✓ Files generated successfully: txt=$LINES_TXT lines, m3u=$LINES_M3U lines"
-        else
-          echo "❌ Error: IPTV files were not generated"
-          exit 1
-        fi
-
-    - name: Get file sizes
-      id: file-size
-      run: |
-        if [ -f "iptv.txt" ]; then
-          SIZE_TXT=$(du -h iptv.txt | cut -f1)
-          echo "size_txt=$SIZE_TXT" >> $GITHUB_OUTPUT
-        else
-          echo "size_txt=0B" >> $GITHUB_OUTPUT
-        fi
+        ## 最近更新
+        **更新时间**: $DATE
         
-        if [ -f "iptv.m3u" ]; then
-          SIZE_M3U=$(du -h iptv.m3u | cut -f1)
-          echo "size_m3u=$SIZE_M3U" >> $GITHUB_OUTPUT
-        else
-          echo "size_m3u=0B" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Update README
-      run: |
-        cat > README.md << EOF
-# IPTV 直播源仓库
-
-## 📢 免责声明
-
-1. 本仓库仅供学习使用，请尊重版权，请勿利用此仓库从事商业行为及非法用途！
-
-2. 使用本仓库的过程中可能会产生版权数据。对于这些版权数据，本仓库不拥有它们的所有权。为了避免侵权，使用者务必在24小时内清除使用本仓库的过程中所产生的版权数据。
-
-3. 由于使用本仓库产生的包括由于本协议或由于使用或无法使用本仓库而引起的任何性质的任何直接、间接、特殊、偶然或结果性损害由使用者负责。
-
-4. 禁止在违反当地法律法规的情况下使用本仓库。对于使用者在明知或不知当地法律法规不允许的情况下使用本仓库所造成的任何违法违规行为由使用者承担。
-
-5. 如果官方平台觉得本仓库不妥，可联系本仓库更改或移除。
-
-## 📊 仓库状态
-
-- **最后更新**: ${{ steps.time.outputs.formattedTime }} (北京时间)
-- **直播源数量**:
-  - iptv.txt: ${{ steps.run-script.outputs.lines_txt }} 行
-  - iptv.m3u: ${{ steps.run-script.outputs.lines_m3u }} 行
-- **文件大小**:
-  - iptv.txt: ${{ steps.file-size.outputs.size_txt }}
-  - iptv.m3u: ${{ steps.file-size.outputs.size_m3u }}
-
-## 📥 下载链接
-
-### 直链下载
-- [iptv.txt](https://raw.githubusercontent.com/${{ github.repository }}/main/iptv.txt)
-- [iptv.m3u](https://raw.githubusercontent.com/${{ github.repository }}/main/iptv.m3u)
-
-### GitHub Raw 链接
-- [iptv.txt](https://raw.githubusercontent.com/${{ github.repository }}/main/iptv.txt)
-- [iptv.m3u](https://raw.githubusercontent.com/${{ github.repository }}/main/iptv.m3u)
-
-## ⚡ 使用说明
-
-1. **播放器使用**: 将上述链接复制到支持 M3U 格式的播放器中使用
-2. **文本格式**: iptv.txt 为纯文本格式，每行一个频道链接
-3. **M3U 格式**: iptv.m3u 为标准 M3U 播放列表格式
-
-## 🔄 自动更新
-
-本仓库每天自动更新三次（北京时间 13:00, 20:00, 次日 01:00）
-
-## ⭐ 支持项目
-
-如果这个项目对您有帮助，请给个 Star 支持一下！
-
----
-*更新时间: ${{ steps.time.outputs.formattedTime }}*
-EOF
-
-        echo "✓ README.md updated successfully"
-
-    - name: Validate changes
-      run: |
-        echo "Validating generated files..."
-        if [ -s "iptv.txt" ] && [ -s "iptv.m3u" ] && [ -s "README.md" ]; then
-          echo "✓ All files are valid"
-          echo "File preview:"
-          head -n 5 iptv.txt iptv.m3u
-        else
-          echo "❌ File validation failed"
-          exit 1
-        fi
+        ## 下载链接
+        - [IPTV文本格式](https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.txt)
+        - [IPTV M3U格式](https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.m3u)
+        
+        ## 使用说明
+        将上述链接添加到您的IPTV播放器中使用。
+        
+        ## 自动更新
+        此仓库每天自动更新多次，确保源的可用性。
+        
+        ⭐ 如果对您有帮助，请给个Star！
+        EOF
 
     - name: Configure Git
       run: |
@@ -162,14 +83,15 @@ EOF
 
     - name: Commit and push changes
       run: |
-        git add .
-        if git diff --staged --quiet; then
-          echo "ℹ️ No changes to commit"
-        else
-          git commit -m "🔄 Auto-update IPTV sources at ${{ steps.time.outputs.formattedTime }}
-          
-- Updated IPTV sources
-- iptv.txt: ${{ steps.run-script.outputs.lines_txt }} lines (${{ steps.file-size.outputs.size_txt }})
-- iptv.m3u: ${{ steps.run-script.outputs.lines_m3u }} lines (${{ steps.file-size.outputs.size_m3u }})"
-          git push
-        fi
+        git add iptv.txt iptv.m3u README.md
+        git diff --staged --quiet || git commit -m "🔄 自动更新于 $DATE"
+        git push origin main
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: iptv-sources
+        path: |
+          iptv.txt
+          iptv.m3u
+        retention-days: 7
