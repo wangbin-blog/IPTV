@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🎬 IPTV智能管理工具 - GitHub Actions 优化版 v6.1
+🎬 IPTV智能管理工具 - 终极优化版 v6.0
 流程：智能抓取 → 精准测速 → 模板匹配 → 生成文件
 特点：优化抓取策略 + 精准测速算法 + 智能过滤机制 + 全面质量控制
 """
@@ -65,7 +65,6 @@ class SpeedTestResult:
     content_type: str = ""
     file_size: int = 0
     response_code: int = 0
-    last_tested: float = 0
 
 
 @dataclass
@@ -86,10 +85,11 @@ class ProcessingStats:
 
 # ==================== 配置管理系统 ====================
 
-class GitHubConfigManager:
-    """GitHub Actions 专用配置管理器"""
+class ConfigManager:
+    """配置管理系统 - 终极优化版"""
     
     def __init__(self):
+        """初始化配置管理器"""
         # 文件配置
         self.template_file: str = "demo.txt"
         self.output_txt: str = "iptv.txt"
@@ -98,15 +98,15 @@ class GitHubConfigManager:
         self.cache_dir: str = "cache"
         self.backup_dir: str = "backup"
         
-        # GitHub环境优化配置
-        self.request_timeout: int = 12
-        self.request_retries: int = 2
-        self.max_workers: int = 8  # GitHub Actions限制
-        self.connection_pool_size: int = 10
+        # 网络配置 - 优化抓取策略
+        self.request_timeout: int = 15  # 减少超时时间
+        self.request_retries: int = 2   # 减少重试次数
+        self.max_workers: int = 12      # 增加并发数
+        self.connection_pool_size: int = 20
         
         # 智能抓取配置
         self.enable_smart_crawling: bool = True
-        self.crawling_batch_size: int = 5
+        self.crawling_batch_size: int = 8  # 分批抓取大小
         self.source_priority: Dict[str, int] = {
             "github.com": 10,
             "raw.githubusercontent.com": 9,
@@ -114,20 +114,20 @@ class GitHubConfigManager:
             "mirror.ghproxy.com": 7
         }
         
-        # 测速配置 - GitHub环境优化
+        # 测速配置 - 优化测速算法
         self.open_speed_test: bool = True
-        self.speed_test_limit: int = 6  # 减少并发避免限制
-        self.speed_test_timeout: int = 8
+        self.speed_test_limit: int = 15  # 大幅增加测速并发数
+        self.speed_test_timeout: int = 6  # 减少测速超时
         self.enable_smart_speed_test: bool = True
-        self.speed_test_strategy: str = "conservative"  # GitHub环境使用保守策略
+        self.speed_test_strategy: str = "adaptive"  # adaptive, aggressive, conservative
         
-        # 过滤配置
+        # 过滤配置 - 智能过滤机制
         self.open_filter_speed: bool = True
-        self.min_speed: float = 0.5
-        self.max_speed: float = 12.0
+        self.min_speed: float = 0.3     # 进一步降低速度要求
+        self.max_speed: float = 15.0    # 设置最大速度限制
         self.enable_quality_filter: bool = True
-        self.min_content_length: int = 1024
-        self.max_content_length: int = 5242880  # 5MB
+        self.min_content_length: int = 1024  # 最小内容长度
+        self.max_content_length: int = 10485760  # 10MB最大限制
         
         # 内容类型过滤
         self.allowed_content_types: List[str] = [
@@ -145,46 +145,49 @@ class GitHubConfigManager:
         ]
         
         # 匹配配置
-        self.similarity_threshold: int = 50
-        self.max_sources_per_channel: int = 5  # 减少源数量
+        self.similarity_threshold: int = 45  # 进一步降低阈值
+        self.max_sources_per_channel: int = 8  # 优化源数量
         self.enable_fuzzy_matching: bool = True
         self.matching_confidence: float = 0.7
         
-        # 质量控制
+        # 质量控制 - 全面增强
         self.enable_quality_control: bool = True
-        self.min_stream_size: int = 512
-        self.max_url_length: int = 350
+        self.min_stream_size: int = 256   # 进一步降低要求
+        self.max_url_length: int = 400    # 减少URL长度限制
+        self.url_stability_check: bool = True
+        self.content_sanity_check: bool = True
         
         # 性能优化
         self.enable_caching: bool = True
-        self.cache_ttl: int = 1800  # 30分钟缓存
+        self.cache_ttl: int = 3600  # 1小时缓存
         self.enable_compression: bool = True
         
-        # 显示配置 - GitHub环境减少输出
-        self.progress_bar_width: int = 30
+        # 显示配置
+        self.progress_bar_width: int = 50
         self.show_detailed_stats: bool = True
-        self.enable_real_time_stats: bool = False  # GitHub Actions中关闭实时统计
+        self.enable_real_time_stats: bool = True
         
-        # 优化的源URL列表 - 选择稳定性高的源
+        # 源URL配置 - 优化源列表
         self.source_urls: List[str] = [
-            "https://gh-proxy.com/https://raw.githubusercontent.com/develop202/migu_video/refs/heads/main/interface.txt",
+            "http://47.120.41.246:8899/zb.txt",
         ]
         
         # HTTP请求头配置
         self.headers: Dict[str, str] = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 GitHub-Actions-IPTV',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': '*/*',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
         }
 
 
 # ==================== 进度显示管理器 ====================
 
 class ProgressDisplay:
-    """进度显示管理器 - GitHub Actions优化版本"""
+    """进度显示管理器 - 优化版本"""
     
     def __init__(self):
         self.start_time: Optional[float] = None
@@ -205,7 +208,7 @@ class ProgressDisplay:
         """进入下一步"""
         if self.step_start_time:
             step_time = time.time() - self.step_start_time
-            logging.info(f"步骤 {self.current_step} 耗时: {step_time:.2f}秒")
+            logging.debug(f"步骤 {self.current_step} 耗时: {step_time:.2f}秒")
         
         self.current_step += 1
         if self.current_step <= self.total_steps:
@@ -220,10 +223,10 @@ class ProgressDisplay:
     
     def _print_header(self) -> None:
         """打印进度头"""
-        print("\n" + "="*60)
-        print("🎬 IPTV智能管理工具 - GitHub Actions优化版 v6.1")
+        print("\n" + "="*70)
+        print("🎬 IPTV智能管理工具 - 终极优化版 v6.0")
         print("🔧 流程: 智能抓取 → 精准测速 → 模板匹配 → 生成文件")
-        print("="*60)
+        print("="*70)
     
     def _print_step(self, step_name: str, message: str) -> None:
         """打印步骤信息"""
@@ -237,9 +240,9 @@ class ProgressDisplay:
 # ==================== 智能测速引擎 ====================
 
 class SmartSpeedTestEngine:
-    """智能测速引擎核心类 - GitHub Actions优化版"""
+    """智能测速引擎核心类 - 终极优化版"""
     
-    def __init__(self, config: GitHubConfigManager):
+    def __init__(self, config: ConfigManager):
         self.config = config
         self.session = self._create_session()
         self._stop_event = threading.Event()
@@ -465,8 +468,13 @@ class SmartSpeedTestEngine:
         try:
             # 智能分批测速
             with ThreadPoolExecutor(max_workers=self.config.speed_test_limit) as executor:
-                # GitHub环境使用保守策略
-                batch_size = 20
+                # 根据测速策略调整批次大小
+                if self.config.speed_test_strategy == "aggressive":
+                    batch_size = 100
+                elif self.config.speed_test_strategy == "conservative":
+                    batch_size = 20
+                else:  # adaptive
+                    batch_size = 50
                 
                 total_urls = len(urls)
                 
@@ -507,16 +515,10 @@ class SmartSpeedTestEngine:
 # ==================== IPTV智能管理器 ====================
 
 class IPTVManager:
-    """IPTV智能管理工具核心类 - GitHub Actions优化版"""
+    """IPTV智能管理工具核心类 - 终极优化版"""
     
-    def __init__(self, config: GitHubConfigManager = None) -> None:
-        # 检查是否在GitHub Actions环境中
-        if os.getenv('GITHUB_ACTIONS'):
-            self.config: GitHubConfigManager = GitHubConfigManager()
-            print("🏃 检测到GitHub Actions环境，使用优化配置")
-        else:
-            self.config: GitHubConfigManager = config or GitHubConfigManager()
-            
+    def __init__(self, config: ConfigManager = None) -> None:
+        self.config: ConfigManager = config or ConfigManager()
         self.stats: ProcessingStats = ProcessingStats()
         self.progress: ProgressDisplay = ProgressDisplay()
         self.speed_engine: SmartSpeedTestEngine = SmartSpeedTestEngine(self.config)
@@ -1376,9 +1378,9 @@ class IPTVManager:
         if not self.config.show_detailed_stats:
             return
             
-        print("\n" + "="*60)
+        print("\n" + "="*70)
         print("📈 详细统计报告")
-        print("="*60)
+        print("="*70)
         
         if not final_data:
             print("❌ 没有数据可统计")
@@ -1409,7 +1411,7 @@ class IPTVManager:
             coverage = channel_count / len(final_data[category]) * 100 if final_data[category] else 0
             print(f"  📺 {category:<12}: {channel_count:2d}频道 ({coverage:5.1f}%) | {source_count:3d}源 (平均{avg_sources:.1f}源/频道)")
         
-        print("-"*60)
+        print("-"*70)
         total_template_channels = sum(len(channels) for channels in final_data.values())
         coverage_rate = (self.stats.channels_with_sources / total_template_channels * 100) if total_template_channels > 0 else 0
         print(f"📈 总体统计:")
@@ -1417,7 +1419,7 @@ class IPTVManager:
         print(f"  🔗 总源数量: {total_sources} (平均{total_sources/total_channels:.1f}源/频道)" if total_channels > 0 else "  🔗 总源数量: 0")
         print(f"  📁 分类数量: {self.stats.categories_processed}")
         
-        print("-"*60)
+        print("-"*70)
         print(f"⚙️  处理统计:")
         print(f"  🌐 源抓取: {self.stats.sources_fetched}成功")
         print(f"  🔧 流解析: {self.stats.streams_parsed}个流")
@@ -1519,10 +1521,10 @@ CCTV-5高清
 
     def run(self) -> None:
         """主运行函数 - 按照优化后的流程执行"""
-        print("=" * 60)
-        print("🎬 IPTV智能管理工具 - GitHub Actions优化版 v6.1")
+        print("=" * 70)
+        print("🎬 IPTV智能管理工具 - 终极优化版 v6.0")
         print("🔧 流程: 智能抓取 → 精准测速 → 模板匹配 → 生成文件")
-        print("=" * 60)
+        print("=" * 70)
         
         start_time = time.time()
         
@@ -1626,20 +1628,24 @@ CCTV-5高清
 
 
 def main():
-    """主函数 - GitHub Actions 优化版"""
-    # 简化的日志配置，适合GitHub Actions
+    """主函数"""
+    # 设置日志
     logging.basicConfig(
         level=logging.INFO,
-        format='%(levelname)s: %(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)]
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler('iptv_manager.log', encoding='utf-8', mode='w')
+        ]
     )
     
     try:
-        manager = IPTVManager()
+        config = ConfigManager()
+        manager = IPTVManager(config)
         manager.run()
     except Exception as e:
-        logging.error(f"程序运行失败: {e}")
-        # 在GitHub Actions中，非零退出码会标记工作流为失败
+        logging.error(f"程序启动失败: {e}")
+        print(f"\n❌ 程序启动失败: {e}")
         sys.exit(1)
 
 
