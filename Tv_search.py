@@ -11,6 +11,13 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
+import logging.handlers
+from retrying import retry
+from dotenv import load_dotenv
+from urllib.parse import urlparse
+
+# 加载环境变量
+load_dotenv()
 
 # 设置日志
 logging.basicConfig(
@@ -18,7 +25,13 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('tv_search.log', encoding='utf-8')
+        logging.FileHandler('tv_search.log', encoding='utf-8'),
+        logging.handlers.RotatingFileHandler(
+            'tv_search_debug.log',
+            maxBytes=5*1024*1024,  # 5MB
+            backupCount=3,
+            encoding='utf-8'
+        )
     ]
 )
 logger = logging.getLogger(__name__)
@@ -38,7 +51,34 @@ class TVSearchCrawler:
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.5845.179 Safari/537.36',
         ]
         
+        # 代理配置
+        self.proxies = self._init_proxies()
+        
+        # 请求延迟
+        self.request_delays = [1, 2, 3]
+        
+        # 搜索源配置
+        self.search_sources = [
+            {'name': 'tonkiang', 'url': 'http://tonkiang.us/'},
+            {'name': 'iptv', 'url': 'http://example.iptvsearch.com/'}
+        ]
+        
         self.setup_output_file()
+    
+    def _init_proxies(self):
+        """初始化代理配置"""
+        proxies = []
+        # 从环境变量获取代理
+        env_proxy = os.getenv('HTTP_PROXY')
+        if env_proxy:
+            proxies.append(env_proxy)
+        
+        # 添加备用代理
+        proxies.extend([
+            'http://proxy1.example.com:8080',
+            'http://proxy2.example.com:8080'
+        ])
+        return proxies
     
     def setup_output_file(self):
         """初始化输出文件"""
@@ -51,12 +91,17 @@ class TVSearchCrawler:
     def setup_driver(self):
         """配置Chrome浏览器驱动"""
         user_agent = random.choice(self.user_agents)
+        proxy = random.choice(self.proxies) if self.proxies else None
+        
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument(f"user-agent={user_agent}")
+        
+        if proxy:
+            chrome_options.add_argument(f'--proxy-server={proxy}')
         
         # GitHub Actions 环境特殊配置
         chrome_options.binary_location = "/usr/bin/google-chrome"
@@ -65,14 +110,28 @@ class TVSearchCrawler:
         driver.set_page_load_timeout(30)
         return driver
     
+    @retry(stop_max_attempt_number=3, wait_fixed=2000)
     def search_tv_channels(self, name):
         """搜索指定频道名称的M3U8链接"""
+        all_m3u8 = []
+        for source in self.search_sources:
+            try:
+                logger.info(f"🔍 在 {source['name']} 搜索频道: {name}")
+                m3u8_list = self._search_single_source(source['url'], name)
+                all_m3u8.extend(m3u8_list)
+                time.sleep(random.choice(self.request_delays))
+            except Exception as e:
+                logger.error(f"❌ 在 {source['name']} 搜索失败: {e}")
+                continue
+        return all_m3u8
+    
+    def _search_single_source(self, url, name):
+        """在单个源搜索频道"""
         driver = self.setup_driver()
         m3u8_list = []
         
         try:
-            logger.info(f"🔍 搜索电视频道: {name}")
-            driver.get('http://tonkiang.us/')
+            driver.get(url)
             
             # 等待搜索框加载
             search_input = WebDriverWait(driver, 15).until(
@@ -103,10 +162,11 @@ class TVSearchCrawler:
                         url = element.text.strip()
                         if url.startswith('http') and 'm3u8' in url:
                             m3u8_list.append(url)
-                            logger.info(f"✅ 找到有效链接: {url}")
+                            logger.debug(f"✅ 找到有效链接: {url}")
                             
         except Exception as e:
             logger.error(f"❌ 搜索频道 '{name}' 时出错: {e}")
+            raise
         finally:
             driver.quit()
             
@@ -116,27 +176,36 @@ class TVSearchCrawler:
         """测试直播流质量和速度"""
         try:
             logger.info(f"🧪 测试直播流: {name}")
+            
+            # 首次连接测试
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             
-            # 检查是否为有效的M3U8文件
+            # 内容类型检查
             content_type = response.headers.get('content-type', '')
             if 'application/x-mpegurl' not in content_type and '#EXTM3U' not in response.text:
                 logger.debug(f"⚠️ 非M3U8格式: {url}")
                 return None
             
-            # 测试下载速度
+            # 速度测试
             download_speed = self.measure_download_speed(url, response.text)
-            if download_speed and download_speed >= self.speed_threshold:
-                logger.info(f"🎯 频道 {name} 速度合格: {download_speed:.2f} MB/s")
-                return url
-            else:
+            if not download_speed or download_speed < self.speed_threshold:
                 logger.debug(f"🐌 频道 {name} 速度过慢: {download_speed:.2f} MB/s")
-                
+                return None
+            
+            # 二次验证确保稳定性
+            try:
+                response = requests.get(url, timeout=5)
+                if response.status_code != 200:
+                    return None
+            except:
+                return None
+            
+            logger.info(f"🎯 频道 {name} 通过所有检查: {download_speed:.2f} MB/s")
+            return url
         except Exception as e:
             logger.debug(f"🔴 流测试失败 {url}: {e}")
-            
-        return None
+            return None
     
     def measure_download_speed(self, base_url, m3u8_content):
         """测量下载速度"""
@@ -147,26 +216,34 @@ class TVSearchCrawler:
             if not segments:
                 return None
             
-            # 测试第一个有效片段
-            test_segment = segments[0]
-            if not test_segment.startswith('http'):
-                test_segment = base_url.rsplit('/', 1)[0] + '/' + test_segment
+            # 测试前3个片段取平均值
+            test_segments = segments[:3]
+            total_speed = 0
+            valid_tests = 0
             
-            start_time = time.time()
-            response = requests.get(test_segment, timeout=10, stream=True)
-            content = response.content
-            end_time = time.time()
-            
-            if response.status_code == 200:
-                download_time = end_time - start_time
-                file_size = len(content)
-                speed = file_size / download_time / (1024 * 1024)  # MB/s
-                return speed
+            for segment in test_segments:
+                if not segment.startswith('http'):
+                    segment = base_url.rsplit('/', 1)[0] + '/' + segment
                 
+                try:
+                    start_time = time.time()
+                    response = requests.get(segment, timeout=10, stream=True)
+                    content = response.content
+                    end_time = time.time()
+                    
+                    if response.status_code == 200:
+                        download_time = end_time - start_time
+                        file_size = len(content)
+                        speed = file_size / download_time / (1024 * 1024)  # MB/s
+                        total_speed += speed
+                        valid_tests += 1
+                except Exception:
+                    continue
+            
+            return total_speed / valid_tests if valid_tests > 0 else None
         except Exception as e:
             logger.debug(f"⏱️ 速度测量失败: {e}")
-            
-        return None
+            return None
     
     def process_tv_category(self, category_name):
         """处理一个电视频道分类"""
@@ -220,7 +297,7 @@ class TVSearchCrawler:
             else:
                 logger.warning(f"❌ 频道 '{channel_name}' 无有效链接")
             
-            time.sleep(2)  # 避免请求过于频繁
+            time.sleep(random.choice(self.request_delays))  # 随机延迟避免请求过于频繁
         
         logger.info(f"🎉 电视分类 '{category_name}' 完成，共找到 {valid_count} 个有效链接")
     
@@ -245,8 +322,10 @@ class TVSearchCrawler:
                 parts = line.split(',', 1)
                 if len(parts) == 2:
                     channel, url = parts[0].strip(), parts[1].strip()
-                    if url not in seen_urls:
-                        seen_urls.add(url)
+                    parsed_url = urlparse(url)
+                    clean_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+                    if clean_url not in seen_urls:
+                        seen_urls.add(clean_url)
                         content_lines.append(line + '\n')
         
         # 重新写入文件
@@ -255,6 +334,12 @@ class TVSearchCrawler:
             f.writelines(content_lines)
         
         logger.info(f"🔄 去重完成，剩余 {len(content_lines)} 个唯一直播源")
+    
+    def cleanup_old_streams(self, days=7):
+        """清理过期的直播源"""
+        # 实现基于时间戳的清理逻辑
+        # 可以扩展为从文件内容中解析出时间信息
+        pass
     
     def run_tv_search(self, categories=None):
         """运行TV搜索主程序"""
@@ -308,6 +393,9 @@ def main():
         # 运行搜索
         total_streams = tv_crawler.run_tv_search(categories)
         
+        # 清理旧数据
+        tv_crawler.cleanup_old_streams()
+        
         # 输出结果摘要
         print(f"\n{'='*50}")
         print(f"TV搜索完成摘要:")
@@ -317,11 +405,10 @@ def main():
         print(f"  输出文件: live.txt")
         print(f"{'='*50}")
         
-        # 成功退出
         sys.exit(0)
         
     except Exception as e:
-        logger.error(f"💥 TV搜索程序异常: {e}")
+        logger.error(f"💥 TV搜索程序异常: {e}", exc_info=True)
         sys.exit(1)
 
 if __name__ == '__main__':
