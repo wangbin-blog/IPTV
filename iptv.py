@@ -169,6 +169,13 @@ class ConfigManager:
         
         # 源URL配置 - 优化源列表
         self.source_urls: List[str] = [
+            "https://ghfast.top/raw.githubusercontent.com/Supprise0901/TVBox_live/main/live.txt",
+            "https://gh-proxy.com/https://raw.githubusercontent.com/wwb521/live/main/tv.m3u",
+            "https://raw.githubusercontent.com/Guovin/iptv-api/gd/output/ipv4/result.m3u",  
+            "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u",
+            "https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u",
+            "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.txt",
+            "https://gh-proxy.com/https://raw.githubusercontent.com/develop202/migu_video/refs/heads/main/interface.txt",
             "http://47.120.41.246:8899/zb.txt",
         ]
         
