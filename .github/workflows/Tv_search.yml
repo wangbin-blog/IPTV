@@ -1,7 +1,7 @@
 name: Tv_search
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
     inputs:
       speed_threshold:
         description: '速度阈值 (MB/s)'
@@ -14,7 +14,6 @@ on:
         default: '央视频道'
         type: string
   schedule:
-    # 每天5点、12点、17点自动运行 (UTC时间，对应北京时间13点、20点、次日1点)
     - cron: '0 5 * * *'
     - cron: '0 12 * * *'
     - cron: '0 17 * * *'
@@ -25,25 +24,36 @@ on:
       - '**.txt'
       - '.github/workflows/**'
 
+env:
+  PYTHON_VERSION: '3.9'
+  MAX_RETRIES: 3
+  WORKFLOW_TIMEOUT_MINUTES: 45
+
 jobs:
   crawl-tv-streams:
     runs-on: ubuntu-latest
+    timeout-minutes: ${{ env.WORKFLOW_TIMEOUT_MINUTES }}
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
 
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y wget unzip
+        sudo apt-get install -y wget unzip xvfb libxss1 libappindicator1 libindicator7
+        
+        # 安装字体支持中文显示
+        sudo apt-get install -y fonts-wqy-microhei fonts-wqy-zenhei
 
     - name: Install Chrome and ChromeDriver
       run: |
@@ -66,24 +76,25 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install requests lxml selenium
+        pip install requests lxml selenium webdriver-manager
+        pip install retrying python-dotenv
 
     - name: Create channel list files
       run: |
         # 创建示例频道文件（如果不存在）
         if [ ! -f "央视频道.txt" ]; then
           cat > "央视频道.txt" << EOF
-          CCTV1
-          CCTV2
-          CCTV5
-          CCTV6
-          CCTV8
-         湖南卫视
-         浙江卫视
-         东方卫视
-         江苏卫视
-         北京卫视
-        EOF
+CCTV1
+CCTV2
+CCTV5
+CCTV6
+CCTV8
+湖南卫视
+浙江卫视
+东方卫视
+江苏卫视
+北京卫视
+EOF
         fi
         
         # 根据输入参数创建其他频道文件
@@ -97,49 +108,49 @@ jobs:
         done
 
     - name: Run TV Search crawler
+      id: run_crawler
       env:
         SPEED_THRESHOLD: ${{ github.event.inputs.speed_threshold || '1.0' }}
         CATEGORIES: ${{ github.event.inputs.categories || '央视频道' }}
+        HTTP_PROXY: ${{ secrets.PROXY_SERVER }}
+        MAX_RETRIES: ${{ env.MAX_RETRIES }}
       run: |
         echo "🎬 开始执行Tv_search"
         echo "📊 运行参数:"
         echo "  速度阈值: $SPEED_THRESHOLD MB/s"
         echo "  频道分类: $CATEGORIES"
+        echo "  代理设置: ${HTTP_PROXY:-无}"
+        echo "  最大重试次数: $MAX_RETRIES"
         echo "  当前时间: $(date '+%Y-%m-%d %H:%M:%S')"
         
-        # 运行TV搜索脚本
-        python Tv_search.py
+        # 带重试机制的运行
+        for i in $(seq 1 $MAX_RETRIES); do
+          echo "🔄 尝试第 $i 次运行..."
+          python Tv_search.py && break || sleep 30
+        done
 
-    - name: Check if live.txt was created
-      id: check_live
-      run: |
+        # 设置输出变量
         if [ -f "live.txt" ]; then
           LINE_COUNT=$(wc -l < live.txt)
-          echo "✅ 直播源文件创建成功"
-          echo "file_exists=true" >> $GITHUB_OUTPUT
           echo "line_count=$LINE_COUNT" >> $GITHUB_OUTPUT
-          echo "📄 文件行数: $LINE_COUNT"
-          echo "📋 文件内容预览:"
-          echo "======================"
-          head -15 live.txt
-          echo "======================"
+          echo "file_exists=true" >> $GITHUB_OUTPUT
         else
-          echo "❌ 直播源文件未创建"
           echo "file_exists=false" >> $GITHUB_OUTPUT
         fi
 
     - name: Upload live streams file
-      if: steps.check_live.outputs.file_exists == 'true'
+      if: steps.run_crawler.outputs.file_exists == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: tv-live-streams-${{ github.run_id }}
         path: |
           live.txt
           tv_search.log
-        retention-days: 3
+          tv_search_debug.log
+        retention-days: 7
 
     - name: Commit and push if changed
-      if: steps.check_live.outputs.file_exists == 'true'
+      if: steps.run_crawler.outputs.file_exists == 'true'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
@@ -149,33 +160,32 @@ jobs:
         if git diff --cached --quiet; then
           echo "📝 没有检测到直播源变化"
         else
-          git commit -m "🔄 Tv_search自动更新直播源 [$(date +'%Y-%m-%d %H:%M')] - 找到 ${{ steps.check_live.outputs.line_count }} 个源"
+          git commit -m "🔄 Tv_search自动更新直播源 [$(date +'%Y-%m-%d %H:%M')] - 找到 ${{ steps.run_crawler.outputs.line_count }} 个源"
           git push
           echo "🚀 电视直播源已更新并推送到仓库"
-          echo "📊 本次更新有效直播源: ${{ steps.check_live.outputs.line_count }} 个"
+          echo "📊 本次更新有效直播源: ${{ steps.run_crawler.outputs.line_count }} 个"
         fi
 
-    - name: Success notification
-      if: success() && steps.check_live.outputs.file_exists == 'true'
-      run: |
-        echo "🎉 Tv_search执行成功！"
-        echo "📈 找到 ${{ steps.check_live.outputs.line_count }} 个有效直播源"
-        echo "🕐 更新时间: $(date '+%Y-%m-%d %H:%M:%S')"
+    - name: Send success notification
+      if: success() && steps.run_crawler.outputs.file_exists == 'true'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `✅ TV搜索成功完成！\n找到 ${{ steps.run_crawler.outputs.line_count }} 个有效直播源\n工作流运行: ${{ github.run_id }}`
+          });
 
-    - name: Failure notification
+    - name: Send failure notification
       if: failure()
-      run: |
-        echo "❌ Tv_search执行失败！"
-        echo "🕐 失败时间: $(date '+%Y-%m-%d %H:%M:%S')"
-        exit 1
-
-    - name: Clean up logs
-      if: always()
-      run: |
-        # 清理日志文件
-        if [ -f "tv_search.log" ]; then
-          rm tv_search.log
-        fi
-        if [ -f "video.ts" ]; then
-          rm video.ts
-        fi
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `❌ TV搜索执行失败！\n工作流运行: ${{ github.run_id }}\n请检查日志获取详细信息`
+          });
