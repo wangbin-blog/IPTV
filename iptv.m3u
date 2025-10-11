@@ -1,6 +1,6 @@
 #EXTM3U
 #PLAYLIST: IPTV智能列表
-#GENERATED: 2025-10-11 12:55:54
+#GENERATED: 2025-10-11 13:49:30
 #PROCESS: 智能抓取→精准测速→模板匹配→生成文件
 #EXTINF:-1 tvg-name="CCTV-1" group-title="央视频道",CCTV-1 [快速]
 https://cc06.tv12.xyz/1.m3u8
@@ -9,21 +9,9 @@ https://cc06.tv12.xyz/2.m3u8
 #EXTINF:-1 tvg-name="CCTV-3" group-title="央视频道",CCTV-3 [快速]
 https://cc06.tv12.xyz/3.m3u8
 #EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源1] [极速]
-https://cc06.tv12.xyz/10.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源2] [极速]
-https://cc06.tv12.xyz/7.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源3] [极速]
-https://cc06.tv12.xyz/8.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源4] [极速]
-https://cc06.tv12.xyz/6.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源5] [极速]
-https://cc06.tv12.xyz/9.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源6] [极速]
-https://cc06.tv12.xyz/5.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源7] [快速]
-https://cc06.tv12.xyz/3.m3u8
-#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源8] [快速]
-https://cc06.tv12.xyz/2.m3u8
+https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+#EXTINF:-1 tvg-name="CCTV-4" group-title="央视频道",CCTV-4 [源2] [快速]
+https://cc06.tv12.xyz/4.m3u8
 #EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源1] [极速]
 https://cc06.tv12.xyz/6.m3u8
 #EXTINF:-1 tvg-name="CCTV-5" group-title="央视频道",CCTV-5 [源2] [极速]
@@ -36,10 +24,38 @@ https://cc06.tv12.xyz/5.m3u8
 https://cc06.tv12.xyz/7.m3u8
 #EXTINF:-1 tvg-name="CCTV-7" group-title="央视频道",CCTV-7 [极速]
 https://cc06.tv12.xyz/8.m3u8
-#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [极速]
-https://cc06.tv12.xyz/9.m3u8
-#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [极速]
-https://cc06.tv12.xyz/10.m3u8
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [源1] [极速]
+https://cc06.tv12.xyz/7.m3u8
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [源2] [极速]
+https://cc06.tv12.xyz/8.m3u8
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [源3] [极速]
+https://cc06.tv12.xyz/6.m3u8
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [源4] [极速]
+https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [源5] [极速]
+https://cc06.tv12.xyz/5.m3u8
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [源6] [快速]
+https://cc06.tv12.xyz/3.m3u8
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [源7] [快速]
+https://cc06.tv12.xyz/4.m3u8
+#EXTINF:-1 tvg-name="CCTV-8" group-title="央视频道",CCTV-8 [源8] [快速]
+https://cc06.tv12.xyz/2.m3u8
+#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [源1] [极速]
+https://cc06.tv12.xyz/7.m3u8
+#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [源2] [极速]
+https://cc06.tv12.xyz/8.m3u8
+#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [源3] [极速]
+https://cc06.tv12.xyz/6.m3u8
+#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [源4] [极速]
+https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [源5] [极速]
+https://cc06.tv12.xyz/5.m3u8
+#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [源6] [快速]
+https://cc06.tv12.xyz/3.m3u8
+#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [源7] [快速]
+https://cc06.tv12.xyz/4.m3u8
+#EXTINF:-1 tvg-name="CCTV-9" group-title="央视频道",CCTV-9 [源8] [快速]
+https://cc06.tv12.xyz/2.m3u8
 #EXTINF:-1 tvg-name="CCTV-10" group-title="央视频道",CCTV-10 [快速]
 https://cc06.tv12.xyz/1.m3u8
 #EXTINF:-1 tvg-name="CCTV-11" group-title="央视频道",CCTV-11 [快速]
@@ -52,7 +68,11 @@ https://cc06.tv12.xyz/1.m3u8
 https://cc06.tv12.xyz/3.m3u8
 #EXTINF:-1 tvg-name="CCTV-13" group-title="央视频道",CCTV-13 [源2] [快速]
 https://cc06.tv12.xyz/1.m3u8
-#EXTINF:-1 tvg-name="CCTV-14" group-title="央视频道",CCTV-14 [快速]
+#EXTINF:-1 tvg-name="CCTV-14" group-title="央视频道",CCTV-14 [源1] [极速]
+https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+#EXTINF:-1 tvg-name="CCTV-14" group-title="央视频道",CCTV-14 [源2] [快速]
+https://cc06.tv12.xyz/4.m3u8
+#EXTINF:-1 tvg-name="CCTV-14" group-title="央视频道",CCTV-14 [源3] [快速]
 https://cc06.tv12.xyz/1.m3u8
 #EXTINF:-1 tvg-name="CCTV-15" group-title="央视频道",CCTV-15 [源1] [极速]
 https://cc06.tv12.xyz/6.m3u8
@@ -71,86 +91,20 @@ https://cc06.tv12.xyz/1.m3u8
 #EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道 [源1] [极速]
 https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-HLS8/cctv4.m3u8
 #EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道 [源2] [快速]
-http://183.207.248.71/gitv/live1/SCWS/SCWS
-#EXTINF:-1 tvg-name="梨园频道" group-title="卫视频道",梨园频道 [源3] [慢速]
 http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
-#EXTINF:-1 tvg-name="广东卫视" group-title="卫视频道",广东卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="浙江卫视" group-title="卫视频道",浙江卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="湖南卫视" group-title="卫视频道",湖南卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [源1] [极速]
-http://player.cntv.cn/standard/live_HLSDRM20180919.swf?v=180.171.5.8.9.6.3.9&ChannelID=btv8&videoTVChannel=btv8&P2PChannelID=pd://cctv_p2p_hdbtv8&tai=btv8&VideoName=btv8&channelID=btv8
-#EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [源2] [极速]
+#EXTINF:-1 tvg-name="浙江卫视" group-title="卫视频道",浙江卫视 [极速]
+http://play-sh13.quklive.com/live/1702360350551252.m3u8?auth_key=2037107484-800189c57a5a44d3b823b60cf84f6756-0-a6f6828a62d5c167cff5e68735fa0d39
+#EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [极速]
 http://player.cntv.cn/standard/live_HLSDRM20180606.swf?ChannelID=btv3&P2PChannelID=pd://cctv_p2p_hdbtv3
-#EXTINF:-1 tvg-name="北京卫视" group-title="卫视频道",北京卫视 [源3] [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="湖北卫视" group-title="卫视频道",湖北卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="安徽卫视" group-title="卫视频道",安徽卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="重庆卫视" group-title="卫视频道",重庆卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="东方卫视" group-title="卫视频道",东方卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="东南卫视" group-title="卫视频道",东南卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="甘肃卫视" group-title="卫视频道",甘肃卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="凤凰卫视" group-title="卫视频道",凤凰卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="广西卫视" group-title="卫视频道",广西卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="贵州卫视" group-title="卫视频道",贵州卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源1] [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源2] [稳定]
-http://nn.7x9d.cn/地方台8563/海南.php?id=jjpd
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源3] [稳定]
-http://nn.7x9d.cn/地方台8563/海南.php?id=xwpd
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源4] [稳定]
-http://nn.7x9d.cn/地方台8563/海南.php?id=ggpd
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源5] [慢速]
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源1] [极速]
 http://nn.7x9d.cn/地方台8563/海南.php?id=sepd
-#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源6] [慢速]
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源2] [快速]
+http://nn.7x9d.cn/地方台8563/海南.php?id=xwpd
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源3] [快速]
+http://nn.7x9d.cn/地方台8563/海南.php?id=jjpd
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源4] [快速]
 http://nn.7x9d.cn/地方台8563/海南.php?id=wlpd
-#EXTINF:-1 tvg-name="河北卫视" group-title="卫视频道",河北卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="河南卫视" group-title="卫视频道",河南卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="吉林卫视" group-title="卫视频道",吉林卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="江苏卫视" group-title="卫视频道",江苏卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="江西卫视" group-title="卫视频道",江西卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="辽宁卫视" group-title="卫视频道",辽宁卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="宁夏卫视" group-title="卫视频道",宁夏卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="青海卫视" group-title="卫视频道",青海卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="山东卫视" group-title="卫视频道",山东卫视 [源1] [极速]
+#EXTINF:-1 tvg-name="海南卫视" group-title="卫视频道",海南卫视 [源5] [稳定]
+http://nn.7x9d.cn/地方台8563/海南.php?id=ggpd
+#EXTINF:-1 tvg-name="山东卫视" group-title="卫视频道",山东卫视 [稳定]
 http://58.57.40.22:9901/tsfile/live/1023_1.m3u8
-#EXTINF:-1 tvg-name="山东卫视" group-title="卫视频道",山东卫视 [源2] [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="山西卫视" group-title="卫视频道",山西卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="陕西卫视" group-title="卫视频道",陕西卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="四川卫视" group-title="卫视频道",四川卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="深圳卫视" group-title="卫视频道",深圳卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="三沙卫视" group-title="卫视频道",三沙卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="天津卫视" group-title="卫视频道",天津卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="西藏卫视" group-title="卫视频道",西藏卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="新疆卫视" group-title="卫视频道",新疆卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
-#EXTINF:-1 tvg-name="云南卫视" group-title="卫视频道",云南卫视 [快速]
-http://183.207.248.71/gitv/live1/G_CHONGQING/G_CHONGQING
