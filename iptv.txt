@@ -1,51 +1,56 @@
-# IPTV播放列表 - 生成时间: 2025-10-11 17:50:42
+# IPTV播放列表 - 生成时间: 2025-10-11 18:50:36
 # 流程: 智能抓取 → 精准测速 → 模板匹配 → 生成文件
 # 每个频道提供多个备用源，按速度排序
 # 格式: 频道名称,直播流地址
 
 央视频道,#genre#
-CCTV-1,https://cc06.tv12.xyz/7.m3u8
-CCTV-1,https://cc06.tv12.xyz/5.m3u8
-CCTV-2,https://cc06.tv12.xyz/7.m3u8
-CCTV-2,https://cc06.tv12.xyz/5.m3u8
-CCTV-3,https://cc06.tv12.xyz/7.m3u8
-CCTV-3,https://cc06.tv12.xyz/5.m3u8
-CCTV-4,https://cc06.tv12.xyz/7.m3u8
-CCTV-4,https://cc06.tv12.xyz/5.m3u8
-CCTV-5,https://cc06.tv12.xyz/5.m3u8
-CCTV-5+,https://cc06.tv12.xyz/5.m3u8
-CCTV-6,https://cc06.tv12.xyz/7.m3u8
-CCTV-7,https://cc06.tv12.xyz/7.m3u8
-CCTV-7,https://cc06.tv12.xyz/5.m3u8
-CCTV-8,https://cc06.tv12.xyz/7.m3u8
-CCTV-8,https://cc06.tv12.xyz/5.m3u8
-CCTV-9,https://cc06.tv12.xyz/7.m3u8
-CCTV-9,https://cc06.tv12.xyz/5.m3u8
-CCTV-10,https://cc06.tv12.xyz/7.m3u8
-CCTV-10,https://cc06.tv12.xyz/5.m3u8
-CCTV-11,https://cc06.tv12.xyz/7.m3u8
-CCTV-11,https://cc06.tv12.xyz/5.m3u8
-CCTV-12,https://cc06.tv12.xyz/7.m3u8
-CCTV-12,https://cc06.tv12.xyz/5.m3u8
-CCTV-13,https://cc06.tv12.xyz/7.m3u8
-CCTV-13,https://cc06.tv12.xyz/5.m3u8
-CCTV-14,https://cc06.tv12.xyz/7.m3u8
-CCTV-14,https://cc06.tv12.xyz/5.m3u8
-CCTV-15,https://cc06.tv12.xyz/5.m3u8
-CCTV-16,https://cc06.tv12.xyz/7.m3u8
-CCTV-17,https://cc06.tv12.xyz/7.m3u8
-CCTV-17,https://cc06.tv12.xyz/5.m3u8
+CCTV-1,https://cc06.tv12.xyz/1.m3u8
+CCTV-2,https://cc06.tv12.xyz/2.m3u8
+CCTV-3,https://cc06.tv12.xyz/3.m3u8
+CCTV-4,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+CCTV-5,https://cc06.tv12.xyz/3.m3u8
+CCTV-5,https://cc06.tv12.xyz/2.m3u8
+CCTV-5,https://cc06.tv12.xyz/1.m3u8
+CCTV-5,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+CCTV-5+,https://cc06.tv12.xyz/3.m3u8
+CCTV-5+,https://cc06.tv12.xyz/2.m3u8
+CCTV-5+,https://cc06.tv12.xyz/1.m3u8
+CCTV-5+,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+CCTV-6,https://cc06.tv12.xyz/3.m3u8
+CCTV-6,https://cc06.tv12.xyz/2.m3u8
+CCTV-6,https://cc06.tv12.xyz/1.m3u8
+CCTV-6,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+CCTV-7,https://cc06.tv12.xyz/3.m3u8
+CCTV-7,https://cc06.tv12.xyz/2.m3u8
+CCTV-7,https://cc06.tv12.xyz/1.m3u8
+CCTV-7,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+CCTV-8,https://cc06.tv12.xyz/3.m3u8
+CCTV-8,https://cc06.tv12.xyz/2.m3u8
+CCTV-8,https://cc06.tv12.xyz/1.m3u8
+CCTV-8,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+CCTV-9,https://cc06.tv12.xyz/3.m3u8
+CCTV-9,https://cc06.tv12.xyz/2.m3u8
+CCTV-9,https://cc06.tv12.xyz/1.m3u8
+CCTV-9,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+CCTV-10,https://cc06.tv12.xyz/1.m3u8
+CCTV-11,https://cc06.tv12.xyz/1.m3u8
+CCTV-12,https://cc06.tv12.xyz/2.m3u8
+CCTV-12,https://cc06.tv12.xyz/1.m3u8
+CCTV-13,https://cc06.tv12.xyz/3.m3u8
+CCTV-13,https://cc06.tv12.xyz/1.m3u8
+CCTV-14,https://cc06.tv12.xyz/1.m3u8
+CCTV-14,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-dash/cctv4.mpd
+CCTV-15,https://cc06.tv12.xyz/1.m3u8
+CCTV-16,https://cc06.tv12.xyz/1.m3u8
+CCTV-17,https://cc06.tv12.xyz/1.m3u8
 
 卫视频道,#genre#
 梨园频道,https://viamotionhsi.netplus.ch/live/eds/cctv4/browser-HLS8/cctv4.m3u8
 梨园频道,http://nn.7x9d.cn/地方台8563/海南.php?id=hnws
-浙江卫视,http://play-sh13.quklive.com/live/1702360350551252.m3u8?auth_key=2037107484-800189c57a5a44d3b823b60cf84f6756-0-a6f6828a62d5c167cff5e68735fa0d39
-北京卫视,http://player.cntv.cn/standard/live_HLSDRM20180919.swf?v=180.171.5.8.9.6.3.9&ChannelID=btv8&videoTVChannel=btv8&P2PChannelID=pd://cctv_p2p_hdbtv8&tai=btv8&VideoName=btv8&channelID=btv8
-北京卫视,http://player.cntv.cn/standard/live_HLSDRM20180606.swf?ChannelID=btv3&P2PChannelID=pd://cctv_p2p_hdbtv3
-海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=ggpd
+海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=wlpd
+海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=sepd
 海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=xwpd
 海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=jjpd
-海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=sepd
-海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=wlpd
+海南卫视,http://nn.7x9d.cn/地方台8563/海南.php?id=ggpd
 山东卫视,http://58.57.40.22:9901/tsfile/live/1023_1.m3u8
 
