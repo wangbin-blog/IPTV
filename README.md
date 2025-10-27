@@ -13,7 +13,7 @@
 5. 如果官方平台觉得本仓库不妥，可联系本仓库更改或移除。
 
 ## 最近更新
-**更新时间**: 2025-10-27 20:58:27
+**更新时间**: 2025-10-27 21:39:11
 
 ## 下载链接
 - [IPTV文本格式](https://ghfast.top/raw.githubusercontent.com/plplpopp/IPTV/refs/heads/main/iptv.txt)
