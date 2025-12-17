@@ -2,7 +2,7 @@ name: Update IPTV
 
 on:
   schedule:
-    - cron: '05,12,17 * * * *'  # 更清晰的cron表达式
+    - cron: '0 0 05,12,17 * *'  # 更清晰的cron表达式
   workflow_dispatch:
   push:  # 添加push触发，便于测试
     paths:
